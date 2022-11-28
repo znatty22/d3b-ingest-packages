@@ -127,3 +127,30 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+### Ingest stuff
+cached_schema.json
+*.tsv
+*.csv
+*.xls
+*.xlsx
+*.txt
+
+# Ingest outputs
+kf_ingest_packages/packages/**/output/*
+
+# Exclude uid cache db
+!kf_ingest_packages/packages/**/output/*.db
+
+# Exclude count analysis report
+!kf_ingest_packages/packages/**/counts*.log
+
+# Exclude ingest logs
+!kf_ingest_packages/packages/**/ingest*.log
+
+# dot files and folders
+.*
+
+# Exclude validation test results
+!kf_ingest_packages/packages/**/validation_results/*
+
