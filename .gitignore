@@ -151,6 +151,9 @@ kf_ingest_packages/packages/**/output/*
 # dot files and folders
 .*
 
+# Exclude github workflows
+!/.github
+
 # Exclude validation test results
 !kf_ingest_packages/packages/**/validation_results/*
 
