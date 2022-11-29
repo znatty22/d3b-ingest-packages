@@ -1,0 +1,40 @@
+
+name: 🚦 Test Ingest Packages 
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize] 
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+
+jobs:
+  test:
+    name: ✅ Test Ingest Packages 
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    steps:
+      - name: 👩‍💻 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade virtualenv
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip install -e .
+
+      - name: 🏭 Dry Run Ingest Packages
+        run: |
+          source venv/bin/activate
+          kidsfirst test d3b_ingest_packages/packages/SD_ME0WME0W
+
