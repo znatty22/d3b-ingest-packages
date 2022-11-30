@@ -11,6 +11,7 @@ concurrency:
 
 env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
   generate-matrix:
@@ -71,7 +72,7 @@ jobs:
       - name: 🏭 Dry Run Ingest
         run: |
           source venv/bin/activate
-          kidsfirst test "d3b_ingest_packages/packages/${{ matrix.package }}"
+          kidsfirst test "$PACKAGE_DIR/${{ matrix.package }}"
       
       - name: 🔢 Generate Counts
         id: count
@@ -79,9 +80,9 @@ jobs:
           source venv/bin/activate
           ./scripts/counts.py "${{ matrix.package }}"
           echo "counts<<EOF" >> $GITHUB_OUTPUT
-          echo "$(cat d3b_ingest_packages/packages/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
+          echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
+      
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
@@ -92,6 +93,15 @@ jobs:
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
             ${{ steps.count.outputs.counts }}
+
+      - name: 🖥 Build Validation Website
+        run: |
+          mkdir -p web/${{ matrix.package }}/ExtractStage
+          mkdir -p web/${{ matrix.package }}/TransformStage
+          cp $PACKAGE_DIR/${{ matrix.package }}/output/ExtractStage/validation_results/validation_results.html web/${{ matrix.package }}/ExtractStage/
+          cp $PACKAGE_DIR/${{ matrix.package }}/output/GuidedTransformStage/validation_results/validation_results.html web/${{ matrix.package }}/TransformStage/
+          ls -l web/${{ matrix.package }}/ExtractStage
+          ls -l web/${{ matrix.package }}/TransformStage
 
 
             
