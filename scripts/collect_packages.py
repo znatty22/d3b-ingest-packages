@@ -8,7 +8,7 @@ from yaml.loader import SafeLoader
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-RUN_FILEPATH = os.path.join(ROOT_DIR, "run.yaml")
+RUN_FILEPATH = os.path.join(ROOT_DIR, "ci_input.yaml")
 PACKAGES_DIR = "d3b_ingest_packages/packages"
 
 
