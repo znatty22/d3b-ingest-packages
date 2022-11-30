@@ -1,0 +1,73 @@
+
+name: 🚦 CI - Ingest Packages 
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize] 
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.collect.outputs.matrix }}
+    steps:
+      - name: 👩‍💻 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade virtualenv
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip install pyyaml 
+
+      - name: 📦 Collect Ingest Package Paths
+        id: collect 
+        run: |
+          source venv/bin/activate
+          JOB_STRATEGY_MATRIX=$(./scripts/collect_packages.py | jq -c .)
+          echo $JOB_STRATEGY_MATRIX
+          echo "matrix=$JOB_STRATEGY_MATRIX" >> $GITHUB_OUTPUT
+
+  test:
+    name: 🚦 Dry Run 
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    needs: generate-matrix
+    strategy:
+      matrix: 
+        package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - name: 👩‍💻 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade virtualenv
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip install -e .
+
+      - name: 🏭 Dry Run Package
+        run: |
+          source venv/bin/activate
+          kidsfirst test "d3b_ingest_packages/packages/${{ matrix.package }}"
+
