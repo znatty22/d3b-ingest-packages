@@ -53,6 +53,7 @@ jobs:
         package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     outputs:
       counts: ${{ steps.count.outputs.counts }}
+      package_id: ${{ steps.create-package-id.outputs.package_id }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -83,17 +84,6 @@ jobs:
           echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
-      - name: 🏷 PR Deploy Preview Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: ${{ matrix.package }}
-          message: |
-            ## :rocket: Results - ${{ matrix.package }} 
-
-            Latest commit: ${{ github.event.pull_request.head.sha }}
-
-            ${{ steps.count.outputs.counts }}
-
       - name: 🖥 Build Validation Website
         run: |
           mkdir -p web/${{ matrix.package }}/ExtractStage
@@ -103,5 +93,35 @@ jobs:
           ls -l web/${{ matrix.package }}/ExtractStage
           ls -l web/${{ matrix.package }}/TransformStage
 
+      - name: 👷‍♀️ Create Package ID
+        id: create-package-id
+        run: |
+          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ matrix.package }})
+          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
+          echo $PACKAGE_ID
 
-            
+      - name: 🚀 Deploy Validation Report to Netlify
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: './web'
+          deploy-message: "🚀 Deploy from GitHub Actions"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alias: validation-report-${{ steps.create-package-id.outputs.package_id }}-${{ github.event.number }}
+          fails-without-credentials: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+
+      - name: 🏷 PR Deploy Preview Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ${{ matrix.package }}
+          message: |
+            ## :rocket: Results - ${{ matrix.package }} 
+
+            Latest commit: ${{ github.event.pull_request.head.sha }}
+
+            [View Validation Report](${{ steps.netlify.outputs.deploy-url }})
+
+            ${{ steps.count.outputs.counts }}
