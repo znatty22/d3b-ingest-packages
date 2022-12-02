@@ -157,3 +157,6 @@ kf_ingest_packages/packages/**/output/*
 # Exclude validation test results
 !kf_ingest_packages/packages/**/validation_results/*
 
+# Validation Report Site
+## Build dir
+web/site
