@@ -86,12 +86,9 @@ jobs:
       
       - name: 🖥 Build Validation Website
         run: |
-          mkdir -p web/${{ matrix.package }}/ExtractStage
-          mkdir -p web/${{ matrix.package }}/TransformStage
-          cp $PACKAGE_DIR/${{ matrix.package }}/output/ExtractStage/validation_results/validation_results.html web/${{ matrix.package }}/ExtractStage/
-          cp $PACKAGE_DIR/${{ matrix.package }}/output/GuidedTransformStage/validation_results/validation_results.html web/${{ matrix.package }}/TransformStage/
-          ls -l web/${{ matrix.package }}/ExtractStage
-          ls -l web/${{ matrix.package }}/TransformStage
+          source venv/bin/activate
+          ./scripts/prep_web.py ${{ matrix.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
+          cd web && mkdocs build && cd ..
 
       - name: 👷‍♀️ Create Package ID
         id: create-package-id
@@ -101,16 +98,24 @@ jobs:
           echo $PACKAGE_ID
 
       - name: 🚀 Deploy Validation Report to Netlify
+        id: netlify
         uses: nwtgck/actions-netlify@v1.2
         with:
-          publish-dir: './web'
+          publish-dir: './web/site'
           deploy-message: "🚀 Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          alias: validation-report-${{ steps.create-package-id.outputs.package_id }}-${{ github.event.number }}
+          # alias: validation-report-${{ steps.create-package-id.outputs.package_id }}-${{ github.event.number }}
+          alias: deploy-preview-${{ github.event.number }} 
           fails-without-credentials: true
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-commit-status: false
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: 🐛 Debug
+        run: echo "deploy url ${{ steps.netlify.outputs.deploy-url }}"
 
 
       - name: 🏷 PR Deploy Preview Comment
