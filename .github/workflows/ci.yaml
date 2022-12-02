@@ -11,6 +11,7 @@ concurrency:
 
 env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
   generate-matrix:
@@ -52,6 +53,7 @@ jobs:
         package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     outputs:
       counts: ${{ steps.count.outputs.counts }}
+      package_id: ${{ steps.create-package-id.outputs.package_id }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -71,7 +73,7 @@ jobs:
       - name: 🏭 Dry Run Ingest
         run: |
           source venv/bin/activate
-          kidsfirst test "d3b_ingest_packages/packages/${{ matrix.package }}"
+          kidsfirst test "$PACKAGE_DIR/${{ matrix.package }}"
       
       - name: 🔢 Generate Counts
         id: count
@@ -79,8 +81,38 @@ jobs:
           source venv/bin/activate
           ./scripts/counts.py "${{ matrix.package }}"
           echo "counts<<EOF" >> $GITHUB_OUTPUT
-          echo "$(cat d3b_ingest_packages/packages/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
+          echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: 🖥 Build Validation Website
+        run: |
+          source venv/bin/activate
+          ./scripts/prep_web.py ${{ matrix.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
+          cd web && mkdocs build && cd ..
+
+      - name: 👷‍♀️ Create Package ID
+        id: create-package-id
+        run: |
+          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ matrix.package }})
+          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
+          echo $PACKAGE_ID
+
+      - name: 🚀 Deploy Validation Report to Netlify
+        id: netlify
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: './web/site'
+          deploy-message: "🚀 Deploy from GitHub Actions"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alias: ${{ steps.create-package-id.outputs.package_id }}
+          # alias: deploy-preview-${{ github.event.number }} 
+          fails-without-credentials: true
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-commit-status: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
@@ -91,7 +123,6 @@ jobs:
 
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
+            [View Validation Report](${{ steps.netlify.outputs.deploy-url }})
+
             ${{ steps.count.outputs.counts }}
-
-
-            

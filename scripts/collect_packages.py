@@ -8,7 +8,7 @@ from yaml.loader import SafeLoader
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-RUN_FILEPATH = os.path.join(ROOT_DIR, "ci_input.yaml")
+RUN_FILEPATH = os.path.join(ROOT_DIR, "run.yaml")
 PACKAGES_DIR = "d3b_ingest_packages/packages"
 
 
@@ -18,7 +18,6 @@ def collect_packages():
     Check to make sure each path exists
     Output list of package paths
     """
-    pass
 
     with open(RUN_FILEPATH) as f:
         data = yaml.load(f, Loader=SafeLoader)
