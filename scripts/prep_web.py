@@ -23,8 +23,8 @@ You can view those validation reports below
 
 ## {package_path}
 
-- [ExtractStage Report](results/ExtractStage/validation_results.md)
-- [TransformStage Report](results/TransformStage/validation_results.md)
+- [ExtractStage Report](results/ExtractStage/validation_results.html)
+- [TransformStage Report](results/TransformStage/validation_results.html)
 """
 
 
@@ -60,10 +60,10 @@ def prep(package_path, pull_request_url):
         )
         src = os.path.join(
             PACKAGES_DIR, package_path, "output", stage_name,
-            "validation_results", "validation_results.md"
+            "validation_results", "validation_results.html"
         )
         dst = os.path.join(
-            "web/docs/results", dest_name, "validation_results.md"
+            "web/docs/results", dest_name, "validation_results.html"
         )
         print(f"\nCopy {src} to {dst}")
 
