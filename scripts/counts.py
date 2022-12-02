@@ -22,7 +22,7 @@ def to_markdown(counts):
     extract = builder._counts_md({"counts": counts["Extract Stage"]})
     transform = builder._counts_md({"counts": counts["Transform Stage"]})
 
-    output.append("## Counts\n")
+    output.append("## Summary\n")
     output.append("### Extract Stage\n")
     output.append(extract)
     output.append("\n")

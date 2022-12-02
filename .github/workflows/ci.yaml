@@ -123,6 +123,8 @@ jobs:
 
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
-            [View Validation Report](${{ steps.netlify.outputs.deploy-url }})
+            ## 🚦 Validation Report
+            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
+            output of the ingested data from each stage 
 
             ${{ steps.count.outputs.counts }}
