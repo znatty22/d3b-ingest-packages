@@ -104,8 +104,8 @@ jobs:
           publish-dir: './web/site'
           deploy-message: "🚀 Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # alias: validation-report-${{ steps.create-package-id.outputs.package_id }}-${{ github.event.number }}
-          alias: deploy-preview-${{ github.event.number }} 
+          alias: ${{ steps.create-package-id.outputs.package_id }}
+          # alias: deploy-preview-${{ github.event.number }} 
           fails-without-credentials: true
           enable-pull-request-comment: false
           enable-commit-comment: false
@@ -113,10 +113,6 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-
-      - name: 🐛 Debug
-        run: echo "deploy url ${{ steps.netlify.outputs.deploy-url }}"
-
 
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
