@@ -13,6 +13,7 @@ env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_POSTGRES_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
@@ -123,7 +124,6 @@ jobs:
           deploy-message: "🚀 Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alias: ${{ steps.create-package-id.outputs.package_id }}
-          # alias: deploy-preview-${{ github.event.number }} 
           fails-without-credentials: true
           enable-pull-request-comment: false
           enable-commit-comment: false
