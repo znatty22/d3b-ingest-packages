@@ -11,6 +11,8 @@ concurrency:
 
 env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
+  FLY_POSTGRES_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
   PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
@@ -83,6 +85,21 @@ jobs:
           echo "counts<<EOF" >> $GITHUB_OUTPUT
           echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+
+      - name: 🌐 Proxy Postgres
+        run: |
+          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+
+      - name: 🗃 Load Ingest Output into DB
+        run: |
+          DB_NAME=ingest_${{ github.event.number }}
+          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_APP }} 
       
       - name: 🖥 Build Validation Website
         run: |
