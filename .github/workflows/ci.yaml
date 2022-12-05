@@ -102,6 +102,7 @@ jobs:
           source venv/bin/activate
           DB_NAME=ingest_${{ github.event.number }}
           ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          ./scripts/load_db.py ${{ matrix.package }} $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
       
       - name: 🖥 Build Validation Website
         run: |
@@ -114,7 +115,7 @@ jobs:
         run: |
           PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ matrix.package }})
           echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
-          echo $PACKAGE_ID
+          echo "Create package id $PACKAGE_ID"
 
       - name: 🚀 Deploy Validation Report to Netlify
         id: netlify
