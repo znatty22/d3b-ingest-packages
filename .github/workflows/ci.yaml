@@ -100,7 +100,7 @@ jobs:
         run: |
           source venv/bin/activate
           DB_NAME=ingest_${{ github.event.number }}
-          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_APP }} 
+          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
       
       - name: 🖥 Build Validation Website
         run: |
