@@ -11,6 +11,9 @@ concurrency:
 
 env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
+  FLY_POSTGRES_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
@@ -83,6 +86,23 @@ jobs:
           echo "counts<<EOF" >> $GITHUB_OUTPUT
           echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+
+      - name: 🌐 Proxy Postgres
+        run: |
+          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+
+      - name: 🗃 Load Ingest Output into DB
+        run: |
+          source venv/bin/activate
+          DB_NAME=ingest_${{ github.event.number }}
+          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          ./scripts/load_db.py ${{ matrix.package }} $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
       
       - name: 🖥 Build Validation Website
         run: |
@@ -95,7 +115,7 @@ jobs:
         run: |
           PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ matrix.package }})
           echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
-          echo $PACKAGE_ID
+          echo "Create package id $PACKAGE_ID"
 
       - name: 🚀 Deploy Validation Report to Netlify
         id: netlify
@@ -105,7 +125,6 @@ jobs:
           deploy-message: "🚀 Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alias: ${{ steps.create-package-id.outputs.package_id }}
-          # alias: deploy-preview-${{ github.event.number }} 
           fails-without-credentials: true
           enable-pull-request-comment: false
           enable-commit-comment: false
