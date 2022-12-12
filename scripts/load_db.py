@@ -8,6 +8,11 @@ import sqlalchemy
 from kf_lib_data_ingest.common.io import read_df
 from config import PACKAGES_DIR
 
+from config import (
+    INGEST_PROCESS_USER,
+    INGEST_PROCESS_PASSWORD,
+)
+
 
 def sanitize_tablename(table_name):
     """
@@ -39,16 +44,12 @@ def load_db(
         "GuidedTransformStage": "TransformStage"
     }
 
+    # Load tables into db
     for stage_dir, stage_name in stages.items():
         schema_name = stage_name
         data_dir = os.path.join(
             PACKAGES_DIR, package_path, "output", stage_dir
         )
-        # Create schemas - 1 per ingest stage
-        print(f"Creating schema {schema_name} ...")
-        eng.execute(sqlalchemy.schema.CreateSchema(schema_name))
-
-        # Load tables into db
         for filename in os.listdir(data_dir):
             filepath = os.path.join(data_dir, filename)
             if (
@@ -58,11 +59,12 @@ def load_db(
             ):
                 continue
 
+            print(f"Loading file {filename} into db ...")
+
             df = read_df(filepath)
 
             table_name = sanitize_tablename(os.path.splitext(filename)[0])
 
-            print(f"Loading table {table_name} ...")
             df.to_sql(
                 table_name,
                 eng,
@@ -94,13 +96,15 @@ def cli():
     )
     parser.add_argument(
         "-u", "--username",
-        help="Super username to use when connecting to the database server",
-        required=True,
+        help="Username of ingest db user",
+        required=False,
+        default=INGEST_PROCESS_USER
     )
     parser.add_argument(
         "-w", "--password",
-        help="Super user password to use when connecting to the database server",
-        required=True,
+        help="Password of ingest db user",
+        required=False,
+        default=INGEST_PROCESS_PASSWORD
     )
     parser.add_argument(
         "-n", "--hostname",
