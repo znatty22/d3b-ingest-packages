@@ -3,7 +3,7 @@ name: 🚦 CI - Ingest Packages
 
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize] 
+    types: [opened, reopened, edited, synchronize, closed] 
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +24,7 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-20.04
     timeout-minutes: 5
+    if: ${{ github.event.action != 'closed' }}
     outputs:
       matrix: ${{ steps.collect.outputs.matrix }}
     steps:
@@ -97,6 +98,7 @@ jobs:
     runs-on: ubuntu-20.04
     timeout-minutes: 10
     needs: generate-matrix
+    if: ${{ github.event.action != 'closed' }}
     strategy:
       matrix: 
         package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
