@@ -24,7 +24,6 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-20.04
     timeout-minutes: 5
-    if: ${{ github.event.action != 'closed' }}
     outputs:
       matrix: ${{ steps.collect.outputs.matrix }}
     steps:
