@@ -104,8 +104,11 @@ jobs:
       - name: 🗃 Load Ingest Output into DB
         run: |
           source venv/bin/activate
-          DB_NAME=ingest_${{ github.event.number }}
+          DB_SUFFIX=$(./scripts/db_name.py ${{ matrix.package }} ${{ github.event.number }})
+          DB_NAME=ingest_$DB_SUFFIX
+          echo "Initializing database $DB_NAME ..."
           ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          echo "Loading database $DB_NAME with ingest data ..."
           ./scripts/load_db.py ${{ matrix.package }} $DB_NAME 
       
       - name: 🖥 Build Validation Website
