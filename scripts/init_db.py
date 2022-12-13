@@ -30,20 +30,35 @@ def create_schema(conn, schema_name):
 
 def create_user(conn, user, password):
     """
-    Drop db user if it exists
+    Alter db user if it exists
     Create a db user
     """
     with conn.cursor() as cursor:
         conn.autocommit = True
         cursor.execute(
             sql.SQL(
-                "DROP USER IF EXISTS {0};"
-                "CREATE USER {0} WITH "
-                "LOGIN ENCRYPTED PASSWORD {1} "
-                "CONNECTION LIMIT 1000;",
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_roles
+                    WHERE rolname = {user_literal}
+                  ) THEN
+                    CREATE USER {user} WITH
+                    CONNECTION LIMIT 1000
+                    LOGIN ENCRYPTED PASSWORD {password};
+                  ELSE
+                    ALTER USER {user} WITH
+                    ENCRYPTED PASSWORD {password};
+                  END IF;
+                END
+                $$;
+                """
             ).format(
-                sql.Identifier(user),
-                sql.Literal(password)
+                user_literal=sql.Literal(user),
+                user=sql.Identifier(user),
+                password=sql.Literal(password)
             )
         )
 
@@ -102,8 +117,8 @@ def create_db(conn, db_name):
 def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     """
     Drop the db if exists and then create a new db
-    Create the ingest process user/user
-    Create viewer user/user
+    Create the ingest process user
+    Create viewer and ingest user
     """
     # Connect to postgres db
     conn = psycopg2.connect(
