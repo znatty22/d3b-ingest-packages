@@ -13,6 +13,10 @@ env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_POSTGRES_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
+  FLY_POSTGRES_INGEST_USER: ${{ secrets.FLY_POSTGRES_INGEST_USER }}
+  FLY_POSTGRES_INGEST_PASSWORD: ${{ secrets.FLY_POSTGRES_INGEST_PASSWORD }}
+  FLY_POSTGRES_VIEWER_USER: ${{ secrets.FLY_POSTGRES_VIEWER_USER }}
+  FLY_POSTGRES_VIEWER_PASSWORD: ${{ secrets.FLY_POSTGRES_VIEWER_PASSWORD }}
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   PACKAGE_DIR: d3b_ingest_packages/packages
 
@@ -100,9 +104,12 @@ jobs:
       - name: 🗃 Load Ingest Output into DB
         run: |
           source venv/bin/activate
-          DB_NAME=ingest_${{ github.event.number }}
+          DB_SUFFIX=$(./scripts/db_name.py ${{ matrix.package }} ${{ github.event.number }})
+          DB_NAME=ingest_$DB_SUFFIX
+          echo "Initializing database $DB_NAME ..."
           ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
-          ./scripts/load_db.py ${{ matrix.package }} $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          echo "Loading database $DB_NAME with ingest data ..."
+          ./scripts/load_db.py ${{ matrix.package }} $DB_NAME 
       
       - name: 🖥 Build Validation Website
         run: |
