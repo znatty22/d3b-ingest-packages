@@ -50,7 +50,49 @@ jobs:
           echo $JOB_STRATEGY_MATRIX
           echo "matrix=$JOB_STRATEGY_MATRIX" >> $GITHUB_OUTPUT
 
-  test:
+  teardown:
+    name: 🔥 Teardown 
+    runs-on: ubuntu-20.04
+    if: ${{ github.ref != 'refs/heads/main' && github.event.action == 'closed' }}
+    timeout-minutes: 15
+    needs: generate-matrix
+    strategy:
+      matrix: 
+        package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - name: 👩‍💻 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade virtualenv
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip install -e .
+          
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+          
+      - name: 🌐 Proxy Postgres
+        run: |
+          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+
+      - name: 🚮 Drop PR db
+        run: |
+          source venv/bin/activate
+          DB_SUFFIX=$(./scripts/db_name.py ${{ matrix.package }} ${{ github.event.number }})
+          DB_NAME=ingest_$DB_SUFFIX
+          ./scripts/drop_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+
+  ingest:
     name: 🚦 Dry Run 
     runs-on: ubuntu-20.04
     timeout-minutes: 10
