@@ -11,56 +11,7 @@ from config import (
     INGEST_VIEWER_USER,
     INGEST_VIEWER_PASSWORD,
 )
-
-
-def create_schema(conn, schema_name):
-    """
-    Create schema in db
-    """
-    with conn.cursor() as cursor:
-        conn.autocommit = True
-        cursor.execute(
-            sql.SQL(
-                "CREATE SCHEMA {0};",
-            ).format(
-                sql.Identifier(schema_name),
-            )
-        )
-
-
-def create_user(conn, user, password):
-    """
-    Alter db user if it exists
-    Create a db user
-    """
-    with conn.cursor() as cursor:
-        conn.autocommit = True
-        cursor.execute(
-            sql.SQL(
-                """
-                DO $$
-                BEGIN
-                  IF NOT EXISTS (
-                    SELECT 1
-                    FROM pg_roles
-                    WHERE rolname = {user_literal}
-                  ) THEN
-                    CREATE USER {user} WITH
-                    CONNECTION LIMIT 1000
-                    LOGIN ENCRYPTED PASSWORD {password};
-                  ELSE
-                    ALTER USER {user} WITH
-                    ENCRYPTED PASSWORD {password};
-                  END IF;
-                END
-                $$;
-                """
-            ).format(
-                user_literal=sql.Literal(user),
-                user=sql.Identifier(user),
-                password=sql.Literal(password)
-            )
-        )
+from scripts import db
 
 
 def grant_privileges(
@@ -86,34 +37,6 @@ def grant_privileges(
         cursor.execute(query)
 
 
-def drop_db(conn, db_name):
-    """
-    Force drop a database if it exists
-    """
-    print(f"Dropping database {db_name} if it exists ...")
-    with conn.cursor() as cursor:
-        conn.autocommit = True
-        cursor.execute(
-            sql.SQL(
-                "DROP DATABASE IF EXISTS {} WITH (FORCE);"
-            ).format(sql.Identifier(db_name))
-        )
-
-
-def create_db(conn, db_name):
-    """
-    Create a databasee
-    """
-    print(f"Creating database {db_name} ...")
-    with conn.cursor() as cursor:
-        conn.autocommit = True
-        cursor.execute(
-            sql.SQL(
-                "CREATE DATABASE {};"
-            ).format(sql.Identifier(db_name))
-        )
-
-
 def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     """
     Drop the db if exists and then create a new db
@@ -127,8 +50,8 @@ def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     )
 
     # Drop the db if it exists and then create db
-    drop_db(conn, ingest_db)
-    create_db(conn, ingest_db)
+    db.drop_db(conn, ingest_db)
+    db.create_db(conn, ingest_db)
 
     # Connect to ingest db now
     conn = psycopg2.connect(
@@ -137,11 +60,11 @@ def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     )
     # Create stage schemas
     for schema_name in ["ExtractStage", "TransformStage"]:
-        create_schema(conn, schema_name)
+        db.create_schema(conn, schema_name)
 
     # Create ingest and viewer users with appropriate permissions
-    create_user(conn, INGEST_PROCESS_USER, INGEST_PROCESS_PASSWORD)
-    create_user(conn, INGEST_VIEWER_USER, INGEST_VIEWER_PASSWORD)
+    db.create_user(conn, INGEST_PROCESS_USER, INGEST_PROCESS_PASSWORD)
+    db.create_user(conn, INGEST_VIEWER_USER, INGEST_VIEWER_PASSWORD)
     grant_privileges(conn)
 
 
