@@ -1,0 +1,31 @@
+{
+  "token": "",
+  "prefs": {
+    "site_name": "CHOP",
+    "site_locale": "en",
+    "allow_tracking": "false"
+  },
+  "database": {
+    "engine": "postgres",
+    "name": "Ingest DB",
+    "details": {
+      "host": "postgres-db",
+      "port": 5432,
+      "dbname": "ingest_db",
+      "user": "viewer",
+      "password": "viewer",
+      "schema-filters-type": "all",
+      "ssl": false,
+      "tunnel-enabled": false,
+      "advanced-options": false
+    },
+    "is_full_sync": true
+  },
+  "user": {
+    "password": "ingest_data_portal",
+    "site_name": "CHOP",
+    "email": "ingest_portal@gmail.com",
+    "last_name": "Data Portal",
+    "first_name": "Ingest"
+  }
+}

@@ -1,0 +1,35 @@
+version: "3.7"
+
+services:
+  postgres-db:
+    image: "postgres:14"
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DBNAME}
+    # -- Uncomment if you want to use a different port than 5432
+    # command: -p 5433
+    # expose:
+    #   - "5433"
+    ports:
+      - "5432:5432"
+    # -- Uncomment if you want to keep db data even after docker stops  
+    # volumes:
+    #   - ./.data/postgres:/var/lib/postgres/data
+  metabase:
+    image: "metabase/metabase:v0.45.1"
+    depends_on:
+      - postgres-db
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      MB_DB_TYPE: ${MB_DB_TYPE}
+      MB_DB_DBNAME: ${MB_DB_DBNAME}
+      MB_DB_HOST: ${MB_DB_HOST}
+      MB_DB_PORT: ${MB_DB_PORT}
+      MB_DB_USER: ${MB_DB_USER}
+      MB_DB_PASS: ${MB_DB_PASS}
+
+
