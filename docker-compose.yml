@@ -18,7 +18,7 @@ services:
     # volumes:
     #   - ./.data/postgres:/var/lib/postgres/data
   metabase:
-    image: "metabase/metabase:latest"
+    image: "metabase/metabase:v0.45.1"
     depends_on:
       - postgres-db
     ports:
