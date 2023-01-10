@@ -52,6 +52,7 @@ def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     # Drop the db if it exists and then create db
     db.drop_db(conn, ingest_db)
     db.create_db(conn, ingest_db)
+    conn.close()
 
     # Connect to ingest db now
     conn = psycopg2.connect(
@@ -66,6 +67,8 @@ def init_db(ingest_db, username, password, hostname="localhost", port=5432):
     db.create_user(conn, INGEST_PROCESS_USER, INGEST_PROCESS_PASSWORD)
     db.create_user(conn, INGEST_VIEWER_USER, INGEST_VIEWER_PASSWORD)
     grant_privileges(conn)
+
+    conn.close()
 
 
 def cli():
