@@ -10,27 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PACKAGE_DIR: d3b_ingest_packages/packages
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  PACKAGE_DIR: d3b_ingest_packages/packages
-  # POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
-  # POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
-  # POSTGRES_HOST: localhost
-  # POSTGRES_PORT: 5432
-  # INGEST_PROCESS_USER: ${{ secrets.INGEST_PROCESS_USER }}
-  # INGEST_PROCESS_PASSWORD: ${{ secrets.INGEST_PROCESS_PASSWORD }}
-  # INGEST_VIEWER_USER: ${{ secrets.INGEST_VIEWER_USER }}
-  # INGEST_VIEWER_PASSWORD: ${{ secrets.INGEST_VIEWER_PASSWORD }}
-  # INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
-  POSTGRES_ADMIN: postgres 
-  POSTGRES_ADMIN_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
+  POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
+  POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
   POSTGRES_HOST: localhost
   POSTGRES_PORT: 5432
-  INGEST_PROCESS_USER: ingest_db_process 
-  INGEST_PROCESS_PASSWORD: ingest_db_process_pw 
-  INGEST_VIEWER_USER: ingest_db_viewer 
-  INGEST_VIEWER_PASSWORD: ingest_db_viewer_pw 
+  INGEST_PROCESS_USER: ${{ secrets.INGEST_PROCESS_USER }}
+  INGEST_PROCESS_PASSWORD: ${{ secrets.INGEST_PROCESS_PASSWORD }}
+  INGEST_VIEWER_USER: ${{ secrets.INGEST_VIEWER_USER }}
+  INGEST_VIEWER_PASSWORD: ${{ secrets.INGEST_VIEWER_PASSWORD }}
   INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
 
 jobs:
@@ -200,4 +191,4 @@ jobs:
       - name: 🚮 Drop PR db
         run: |
           source venv/bin/activate
-          ./scripts/drop_db.py $INGEST_DB_DBNAME -u postgres -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
+          ./scripts/drop_db.py $INGEST_DB_DBNAME -u ${{ env.POSTGRES_ADMIN }} -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
