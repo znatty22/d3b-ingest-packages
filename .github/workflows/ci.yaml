@@ -21,11 +21,12 @@ env:
   PACKAGE_DIR: d3b_ingest_packages/packages
 
 jobs:
-  generate-matrix:
+  setup:
+    name: 🛠 Setup
     runs-on: ubuntu-20.04
     timeout-minutes: 5
     outputs:
-      matrix: ${{ steps.collect.outputs.matrix }}
+      package: ${{ steps.package_path.outputs.package }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -42,23 +43,123 @@ jobs:
           source venv/bin/activate
           pip install pyyaml
 
-      - name: 📦 Collect Ingest Package Paths
-        id: collect 
+      - name: 📦 Get Package Path
+        id: package_path 
         run: |
           source venv/bin/activate
-          JOB_STRATEGY_MATRIX=$(./scripts/collect_packages.py | jq -c .)
-          echo $JOB_STRATEGY_MATRIX
-          echo "matrix=$JOB_STRATEGY_MATRIX" >> $GITHUB_OUTPUT
+          PACKAGE=$(./scripts/collect_packages.py)
+          echo "Package path $PACKAGE "
+          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+
+  ingest:
+    name: 🚦 Dry Run 
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+    needs: setup 
+    if: ${{ github.event.action != 'closed' }}
+    outputs:
+      counts: ${{ steps.count.outputs.counts }}
+      package_id: ${{ steps.create-package-id.outputs.package_id }}
+    steps:
+      - name: 👩‍💻 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+
+      - name: 📦 Install deps
+        run: |
+          pip install --upgrade virtualenv
+          virtualenv -p python3 venv
+          source venv/bin/activate
+          pip install -e .
+
+      - name: 🏭 Dry Run Ingest
+        run: |
+          source venv/bin/activate
+          kidsfirst test "$PACKAGE_DIR/${{ needs.setup.outputs.package }}"
+      
+      - name: 🔢 Generate Counts
+        id: count
+        run: |
+          source venv/bin/activate
+          ./scripts/counts.py "${{ needs.setup.outputs.package }}"
+          echo "counts<<EOF" >> $GITHUB_OUTPUT
+          echo "$(cat $PACKAGE_DIR/${{ needs.setup.outputs.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+
+      - name: 🌐 Proxy Postgres
+        run: |
+          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+
+      - name: 🗃 Load Ingest Output into DB
+        run: |
+          source venv/bin/activate
+          DB_SUFFIX=$(./scripts/db_name.py ${{ needs.setup.outputs.package }} ${{ github.event.number }})
+          DB_NAME=ingest_$DB_SUFFIX
+          echo "Initializing database $DB_NAME ..."
+          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          echo "Loading database $DB_NAME with ingest data ..."
+          ./scripts/load_db.py ${{ needs.setup.outputs.package }} $DB_NAME 
+      
+      - name: 🖥 Build Validation Website
+        run: |
+          source venv/bin/activate
+          ./scripts/prep_web.py ${{ needs.setup.outputs.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
+          cd web && mkdocs build && cd ..
+
+      - name: 👷‍♀️ Create Package ID
+        id: create-package-id
+        run: |
+          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ needs.setup.outputs.package }})
+          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
+          echo "Create package id $PACKAGE_ID"
+
+      - name: 🚀 Deploy Validation Report to Netlify
+        id: netlify
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: './web/site'
+          deploy-message: "🚀 Deploy from GitHub Actions"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alias: ${{ steps.create-package-id.outputs.package_id }}
+          fails-without-credentials: true
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-commit-status: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: 🏷 PR Deploy Preview Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ${{ needs.setup.outputs.package }}
+          message: |
+            ## :rocket: Results - ${{ needs.setup.outputs.package }}
+
+            Latest commit: ${{ github.event.pull_request.head.sha }}
+
+            ## 🚦 Validation Report
+            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
+            output of the ingested data from each stage 
+
+            ${{ steps.count.outputs.counts }}
 
   teardown:
     name: 🔥 Teardown 
     runs-on: ubuntu-20.04
     if: ${{ github.ref != 'refs/heads/main' && github.event.action == 'closed' }}
     timeout-minutes: 15
-    needs: generate-matrix
-    strategy:
-      matrix: 
-        package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    needs: setup 
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -88,112 +189,6 @@ jobs:
       - name: 🚮 Drop PR db
         run: |
           source venv/bin/activate
-          DB_SUFFIX=$(./scripts/db_name.py ${{ matrix.package }} ${{ github.event.number }})
+          DB_SUFFIX=$(./scripts/db_name.py ${{ needs.setup.outputs.package }} ${{ github.event.number }})
           DB_NAME=ingest_$DB_SUFFIX
           ./scripts/drop_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
-
-  ingest:
-    name: 🚦 Dry Run 
-    runs-on: ubuntu-20.04
-    timeout-minutes: 10
-    needs: generate-matrix
-    if: ${{ github.event.action != 'closed' }}
-    strategy:
-      matrix: 
-        package: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-    outputs:
-      counts: ${{ steps.count.outputs.counts }}
-      package_id: ${{ steps.create-package-id.outputs.package_id }}
-    steps:
-      - name: 👩‍💻 Checkout code
-        uses: actions/checkout@v3
-
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.8'
-
-      - name: 📦 Install deps
-        run: |
-          pip install --upgrade virtualenv
-          virtualenv -p python3 venv
-          source venv/bin/activate
-          pip install -e .
-
-      - name: 🏭 Dry Run Ingest
-        run: |
-          source venv/bin/activate
-          kidsfirst test "$PACKAGE_DIR/${{ matrix.package }}"
-      
-      - name: 🔢 Generate Counts
-        id: count
-        run: |
-          source venv/bin/activate
-          ./scripts/counts.py "${{ matrix.package }}"
-          echo "counts<<EOF" >> $GITHUB_OUTPUT
-          echo "$(cat $PACKAGE_DIR/${{ matrix.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: 🪰 Install Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-        with:
-          version: 0.0.368
-
-      - name: 🌐 Proxy Postgres
-        run: |
-          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
-          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
-
-      - name: 🗃 Load Ingest Output into DB
-        run: |
-          source venv/bin/activate
-          DB_SUFFIX=$(./scripts/db_name.py ${{ matrix.package }} ${{ github.event.number }})
-          DB_NAME=ingest_$DB_SUFFIX
-          echo "Initializing database $DB_NAME ..."
-          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
-          echo "Loading database $DB_NAME with ingest data ..."
-          ./scripts/load_db.py ${{ matrix.package }} $DB_NAME 
-      
-      - name: 🖥 Build Validation Website
-        run: |
-          source venv/bin/activate
-          ./scripts/prep_web.py ${{ matrix.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
-          cd web && mkdocs build && cd ..
-
-      - name: 👷‍♀️ Create Package ID
-        id: create-package-id
-        run: |
-          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ matrix.package }})
-          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
-          echo "Create package id $PACKAGE_ID"
-
-      - name: 🚀 Deploy Validation Report to Netlify
-        id: netlify
-        uses: nwtgck/actions-netlify@v1.2
-        with:
-          publish-dir: './web/site'
-          deploy-message: "🚀 Deploy from GitHub Actions"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          alias: ${{ steps.create-package-id.outputs.package_id }}
-          fails-without-credentials: true
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-commit-status: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-
-      - name: 🏷 PR Deploy Preview Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: ${{ matrix.package }}
-          message: |
-            ## :rocket: Results - ${{ matrix.package }} 
-
-            Latest commit: ${{ github.event.pull_request.head.sha }}
-
-            ## 🚦 Validation Report
-            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
-            output of the ingested data from each stage 
-
-            ${{ steps.count.outputs.counts }}
