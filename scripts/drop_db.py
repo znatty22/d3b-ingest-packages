@@ -25,6 +25,7 @@ def drop_db(db_name, username, password, hostname="localhost", port=5432):
                 "DROP DATABASE IF EXISTS {} WITH (FORCE);"
             ).format(sql.Identifier(db_name))
         )
+    conn.close()
 
 
 def cli():
