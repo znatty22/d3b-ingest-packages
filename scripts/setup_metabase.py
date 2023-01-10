@@ -103,20 +103,21 @@ def cli():
     args = parser.parse_args()
 
     print(f"Setting up metabase with args {args}")
-    print("Environment variables")
-    v = {
-        "INGEST_DB_HOST": INGEST_DB_HOST,
-        "INGEST_DB_PORT": INGEST_DB_PORT,
-        "INGEST_VIEWER_USER": INGEST_VIEWER_USER,
-        "INGEST_VIEWER_PASSWORD": INGEST_VIEWER_PASSWORD,
-        "METABASE_APP_ADMIN": METABASE_APP_ADMIN,
-        "METABASE_APP_ADMIN_PASSWORD": METABASE_APP_ADMIN_PASSWORD,
-        "METABASE_APP_ADMIN_EMAIL": METABASE_APP_ADMIN_EMAIL,
-        "METABASE_APP_URL": METABASE_APP_URL,
-    }
-    # pprint(v)
+    # print("Environment variables")
+    # v = {
+    #     "INGEST_DB_HOST": INGEST_DB_HOST,
+    #     "INGEST_DB_PORT": INGEST_DB_PORT,
+    #     "INGEST_VIEWER_USER": INGEST_VIEWER_USER,
+    #     "INGEST_VIEWER_PASSWORD": INGEST_VIEWER_PASSWORD,
+    #     "METABASE_APP_ADMIN": METABASE_APP_ADMIN,
+    #     "METABASE_APP_ADMIN_PASSWORD": METABASE_APP_ADMIN_PASSWORD,
+    #     "METABASE_APP_ADMIN_EMAIL": METABASE_APP_ADMIN_EMAIL,
+    #     "METABASE_APP_URL": METABASE_APP_URL,
+    #     "package_path": args.package_path
+    # }
 
     setup_metabase(args.ingest_db, args.package_path)
+
 
 if __name__ == "__main__":
     cli()

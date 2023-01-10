@@ -3,8 +3,8 @@ import os
 ROOT_DIR = os.path.dirname(os.path.dirname((__file__)))
 PACKAGES_DIR = "d3b_ingest_packages/packages"
 
-INGEST_DB_HOST = os.getenv("POSTGRES_HOST") or "localhost"
-INGEST_DB_PORT = os.getenv("POSTGRES_PORT") or 5432
+INGEST_DB_HOST = os.getenv("INGEST_DB_HOST")
+INGEST_DB_PORT = os.getenv("INGEST_DB_PORT")
 INGEST_PROCESS_USER = os.getenv("INGEST_PROCESS_USER")
 INGEST_PROCESS_PASSWORD = os.getenv("INGEST_PROCESS_PASSWORD")
 INGEST_VIEWER_USER = os.getenv("INGEST_VIEWER_USER")

@@ -29,7 +29,9 @@ env:
   MB_DB_TYPE: postgres
   MB_DB_USER: metabase_db_admin 
   MB_DB_PASS: metabase_db_admin_pw 
+  MB_APP_ADMIN: ${{ github.event.pull_request.base.user.login }}
   MB_APP_ADMIN_PASS: metabase_app_@dmin_1234! 
+  MB_APP_ADMIN_EMAIL: ${{ github.event.pull_request.base.user.login }}@example.com
 
 jobs:
   setup:
@@ -38,6 +40,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       package: ${{ steps.package_path.outputs.package }}
+      metabase_app_url: ${{ steps.app_url.outputs.metabase_app_url }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -61,6 +64,13 @@ jobs:
           PACKAGE=$(./scripts/collect_packages.py)
           echo "Package path $PACKAGE "
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+
+      - name: 🛠 Create metabase app url
+        id: app_url
+        run: |
+          MB_APP_URL=https://${{ env.FLY_WEB_APP }}.fly.dev
+          echo "metabase_app_url=$MB_APP_URL" >> $GITHUB_OUTPUT
+          echo "Metabaase App URL: $MB_APP_URL"
 
   create-metabase-app:
     name: ✨ Create Metabase App 
@@ -110,6 +120,7 @@ jobs:
     outputs:
       counts: ${{ steps.count.outputs.counts }}
       package_id: ${{ steps.create-package-id.outputs.package_id }}
+      validation_report_url: ${{ steps.netlify.outputs.deploy-url }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -187,24 +198,9 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-      - name: 🏷 PR Deploy Preview Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: ${{ needs.setup.outputs.package }}
-          message: |
-            ## :rocket: Results - ${{ needs.setup.outputs.package }}
-
-            Latest commit: ${{ github.event.pull_request.head.sha }}
-
-            ## 🚦 Validation Report
-            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
-            output of the ingested data from each stage 
-
-            ${{ steps.count.outputs.counts }}
-
   deploy-metabase:
     name: 🚀 Deploy Metabase App 
-    needs: ingest 
+    needs: [setup, create-metabase-app, ingest] 
     runs-on: ubuntu-20.04
     # Only create app, init db, and deploy metabase if metabase app does not exist 
     if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
@@ -251,19 +247,9 @@ jobs:
            INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
            echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
 
-       - name: 🤫 ✨ Create metabase app secrets
+       - name: 🛠 Set metabase app env vars
          run: |
-           echo "Generate metabase app admin username and pw ..."
-           # TODO: Unfortunately there doesn't seem to be an easy way to 
-           # get the user's github email. But we can get their username
-
-           MB_APP_ADMIN=${{ github.event.pull_request.base.user.login }}
-           MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN@example.com
-           MB_APP_URL=https://${{ env.FLY_WEB_APP }}.fly.dev
-
-           echo "MB_APP_ADMIN=$MB_APP_ADMIN" >> $GITHUB_ENV
-           echo "MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN_EMAIL" >> $GITHUB_ENV
-           echo "MB_APP_URL=$MB_APP_URL" >> $GITHUB_ENV
+           echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
        
        - name: 🛠 Setup metabase app
          if: ${{ steps.metabase-init-check.outputs.init_complete != '0' }} 
@@ -272,7 +258,36 @@ jobs:
            echo "Setting up metabase admin user ${{ env.MB_APP_ADMIN }} and db connection to ${{ env.INGEST_DB_DBNAME }} ..."
            export INGEST_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }}
            export INGEST_DB_PORT=${{ env.POSTGRES_PORT }}
-           ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ env.INGEST_DB_DBNAME }}  
+           ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ needs.setup.outputs.package }}  
+
+  pr-comment:
+    name: 🏷 Create PR Comment 
+    needs: [setup, ingest] 
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed'}}
+    timeout-minutes: 10
+    steps:
+      - name: 🏷 PR Deploy Preview Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ${{ needs.setup.outputs.package }}
+          message: |
+            ## :rocket: Results - ${{ needs.setup.outputs.package }}
+
+            Latest commit: ${{ github.event.pull_request.head.sha }}
+
+             ### 📊 Ingest Data Portal 
+             [View the portal](${{ needs.setup.outputs.metabase_app_url }}) to explore the output tables of your ingest package
+             in a postgres database. Admin login info:  
+
+             **Username**: ${{ env.MB_APP_ADMIN_EMAIL }}
+             **Password**: Ask the github repo admin 
+               
+            ### 🚦 Validation Report
+            [View the validation report](${{ needs.ingest.outputs.validation_report_url }}) to see the results of standard data checks performed on the 
+            output of the ingested data from each stage 
+
+            ${{ steps.count.outputs.counts }}
 
   teardown:
     name: 🔥 Teardown 
