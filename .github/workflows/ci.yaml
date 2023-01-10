@@ -142,33 +142,29 @@ jobs:
            echo "Initializing metabase $MB_DB_DBNAME ..."
            ./scripts/init_metabase_db.py $MB_DB_DBNAME -u $MB_DB_USER -w $MB_DB_PASS -n $MB_DB_HOST -p $MB_DB_PORT
            
-       # - name: 🚀 Fly deploy
-       #   run: |
-       #    flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
+       - name: 🚀 Fly deploy
+         run: |
+          flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
 
-       # - name: ⏰ Wait for Init Complete
-       #   id: metabase-init-check
-       #   run: |
-       #     INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
-       #     echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
+       - name: ⏰ Wait for Init Complete
+         id: metabase-init-check
+         run: |
+           INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
+           echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
 
-       # - name: 🤫 ✨ Create metabase app secrets
-       #   run: |
-       #     echo "Generate metabase app admin username and pw ..."
-       #     # Dynamically generate metabase app admin username and pw
-       #     # Set the Github Env with these
-       #     # Maybe: Use GH secret that user has to set, METABASE_APP_ADMIN_PW 
+       - name: 🤫 ✨ Create metabase app secrets
+         run: |
+           echo "Generate metabase app admin username and pw ..."
+           # TODO: Unfortunately there doesn't seem to be an easy way to 
+           # get the user's github email. But we can get their username
 
-       #     # TODO: Unfortunately there doesn't seem to be an easy way to 
-       #     # get the user's github email. But we can get their username
+           MB_APP_ADMIN=${{ github.event.pull_request.base.user.login }}
+           MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN@example.com
+           MB_APP_URL=https://${{ env.FLY_WEB_APP }}.fly.dev
 
-       #     MB_APP_ADMIN=${{ github.event.pull_request.base.user.login }}
-       #     MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN@example.com
-       #     MB_APP_URL=https://${{ env.FLY_WEB_APP }}.fly.dev
-
-       #     echo "MB_APP_ADMIN=$MB_APP_ADMIN" >> $GITHUB_ENV
-       #     echo "MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN_EMAIL" >> $GITHUB_ENV
-       #     echo "MB_APP_URL=$MB_APP_URL" >> $GITHUB_ENV
+           echo "MB_APP_ADMIN=$MB_APP_ADMIN" >> $GITHUB_ENV
+           echo "MB_APP_ADMIN_EMAIL=$MB_APP_ADMIN_EMAIL" >> $GITHUB_ENV
+           echo "MB_APP_URL=$MB_APP_URL" >> $GITHUB_ENV
        
 
        # - name: 🛠 Setup metabase app
