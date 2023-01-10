@@ -12,6 +12,7 @@ concurrency:
 env:
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
+  FLY_POSTGRES_USER: postgres 
   FLY_POSTGRES_PASSWORD: ${{ secrets.FLY_POSTGRES_PASSWORD }} 
   FLY_POSTGRES_INGEST_USER: ${{ secrets.FLY_POSTGRES_INGEST_USER }}
   FLY_POSTGRES_INGEST_PASSWORD: ${{ secrets.FLY_POSTGRES_INGEST_PASSWORD }}
@@ -19,6 +20,7 @@ env:
   FLY_POSTGRES_VIEWER_PASSWORD: ${{ secrets.FLY_POSTGRES_VIEWER_PASSWORD }}
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   PACKAGE_DIR: d3b_ingest_packages/packages
+  INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
 
 jobs:
   setup:
@@ -52,7 +54,7 @@ jobs:
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
 
   ingest:
-    name: 🚦 Dry Run 
+    name: 🚦 Ingest Dry Run 
     runs-on: ubuntu-20.04
     timeout-minutes: 10
     needs: setup 
@@ -103,12 +105,10 @@ jobs:
       - name: 🗃 Load Ingest Output into DB
         run: |
           source venv/bin/activate
-          DB_SUFFIX=$(./scripts/db_name.py ${{ needs.setup.outputs.package }} ${{ github.event.number }})
-          DB_NAME=ingest_$DB_SUFFIX
-          echo "Initializing database $DB_NAME ..."
-          ./scripts/init_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
-          echo "Loading database $DB_NAME with ingest data ..."
-          ./scripts/load_db.py ${{ needs.setup.outputs.package }} $DB_NAME 
+          echo "Initializing database $INGEST_DB_DBNAME ..."
+          ./scripts/init_db.py $INGEST_DB_DBNAME -u ${{ env.FLY_POSTGRES_USER }} -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          echo "Loading database $INGEST_DB_DBNAME with ingest data ..."
+          ./scripts/load_db.py ${{ needs.setup.outputs.package }} $INGEST_DB_DBNAME 
       
       - name: 🖥 Build Validation Website
         run: |
@@ -189,6 +189,4 @@ jobs:
       - name: 🚮 Drop PR db
         run: |
           source venv/bin/activate
-          DB_SUFFIX=$(./scripts/db_name.py ${{ needs.setup.outputs.package }} ${{ github.event.number }})
-          DB_NAME=ingest_$DB_SUFFIX
-          ./scripts/drop_db.py $DB_NAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
+          ./scripts/drop_db.py $INGEST_DB_DBNAME -u postgres -w ${{ env.FLY_POSTGRES_PASSWORD }} 
