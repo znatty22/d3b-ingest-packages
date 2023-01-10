@@ -12,7 +12,9 @@ concurrency:
 env:
   PACKAGE_DIR: d3b_ingest_packages/packages
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  FLY_POSTGRES_HOSTNAME: d3b-ingest-sandbox-postgres.internal  
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
+  FLY_WEB_APP: metabase-ingest-portal-pr${{ github.event.number }} 
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
   POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
@@ -23,6 +25,13 @@ env:
   INGEST_VIEWER_USER: ${{ secrets.INGEST_VIEWER_USER }}
   INGEST_VIEWER_PASSWORD: ${{ secrets.INGEST_VIEWER_PASSWORD }}
   INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
+  MB_DB_HOST: localhost
+  MB_DB_PORT: 5432
+  MB_DB_DBNAME: metabase_db_pr${{ github.event.number }}
+  MB_DB_TYPE: postgres
+  MB_DB_USER: metabase_db_admin 
+  MB_DB_PASS: metabase_db_admin_pw 
+  MB_APP_ADMIN_PASS: metabase_app_@dmin_1234! 
 
 jobs:
   setup:
@@ -55,106 +64,145 @@ jobs:
           echo "Package path $PACKAGE "
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
 
-  ingest:
-    name: 🚦 Ingest Dry Run 
+  create-metabase-app:
+    name: ✨ Create Metabase App 
     runs-on: ubuntu-20.04
-    timeout-minutes: 10
-    needs: setup 
     if: ${{ github.event.action != 'closed' }}
+    timeout-minutes: 10
     outputs:
-      counts: ${{ steps.count.outputs.counts }}
-      package_id: ${{ steps.create-package-id.outputs.package_id }}
+      metabase_exists: ${{ steps.check.outputs.metabase_exists }}
     steps:
-      - name: 👩‍💻 Checkout code
-        uses: actions/checkout@v3
-
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.8'
-
-      - name: 📦 Install deps
-        run: |
-          pip install --upgrade virtualenv
-          virtualenv -p python3 venv
-          source venv/bin/activate
-          pip install -e .
-
-      - name: 🏭 Dry Run Ingest
-        run: |
-          source venv/bin/activate
-          kidsfirst test "$PACKAGE_DIR/${{ needs.setup.outputs.package }}"
-      
-      - name: 🔢 Generate Counts
-        id: count
-        run: |
-          source venv/bin/activate
-          ./scripts/counts.py "${{ needs.setup.outputs.package }}"
-          echo "counts<<EOF" >> $GITHUB_OUTPUT
-          echo "$(cat $PACKAGE_DIR/${{ needs.setup.outputs.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: 🪰 Install Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
         with:
           version: 0.0.368
 
-      - name: 🌐 Proxy Postgres
+      - name: 🧐 Check app exists
+        id: check
         run: |
-          exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
-          sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+          METABASE_EXISTS=$(echo $(flyctl apps list | grep -E -cim1 '^${{ env.FLY_WEB_APP }}\s+'))
+          echo "metabase_exists=$METABASE_EXISTS" >> $GITHUB_OUTPUT
 
-      - name: 🗃 Load Ingest Output into DB
+      - name: ✨ Create app
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl apps create --name ${{ env.FLY_WEB_APP }}
+
+      - name: 🧱 Set app scale
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl scale memory --app ${{ env.FLY_WEB_APP }} 2048
+
+      - name: 🔐 Set app deployment secrets
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
         run: |
-          source venv/bin/activate
-          echo "Initializing database $INGEST_DB_DBNAME ..."
-          ./scripts/init_db.py $INGEST_DB_DBNAME -u ${{ env.POSTGRES_ADMIN }} -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
-          echo "Loading database $INGEST_DB_DBNAME with ingest data ..."
-          ./scripts/load_db.py ${{ needs.setup.outputs.package }} $INGEST_DB_DBNAME 
+          # These secrets are needed to deploy metabase
+          flyctl secrets --app ${{ env.FLY_WEB_APP }} set \
+            MB_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }} \
+            MB_DB_PORT=${{ env.MB_DB_PORT }} \
+            MB_DB_DBNAME=${{ env.MB_DB_DBNAME }} \
+            MB_DB_USER=${{ env.MB_DB_USER }} \
+            MB_DB_PASS=${{ env.MB_DB_PASS }} \
+            MB_DB_TYPE=${{ env.MB_DB_TYPE }}
+
+  # ingest:
+  #   name: 🚦 Ingest Dry Run 
+  #   runs-on: ubuntu-20.04
+  #   timeout-minutes: 10
+  #   needs: setup 
+  #   if: ${{ github.event.action != 'closed' }}
+  #   outputs:
+  #     counts: ${{ steps.count.outputs.counts }}
+  #     package_id: ${{ steps.create-package-id.outputs.package_id }}
+  #   steps:
+  #     - name: 👩‍💻 Checkout code
+  #       uses: actions/checkout@v3
+
+  #     - name: 🐍 Setup Python
+  #       uses: actions/setup-python@v3
+  #       with:
+  #         python-version: '3.8'
+
+  #     - name: 📦 Install deps
+  #       run: |
+  #         pip install --upgrade virtualenv
+  #         virtualenv -p python3 venv
+  #         source venv/bin/activate
+  #         pip install -e .
+
+  #     - name: 🏭 Dry Run Ingest
+  #       run: |
+  #         source venv/bin/activate
+  #         kidsfirst test "$PACKAGE_DIR/${{ needs.setup.outputs.package }}"
       
-      - name: 🖥 Build Validation Website
-        run: |
-          source venv/bin/activate
-          ./scripts/prep_web.py ${{ needs.setup.outputs.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
-          cd web && mkdocs build && cd ..
+  #     - name: 🔢 Generate Counts
+  #       id: count
+  #       run: |
+  #         source venv/bin/activate
+  #         ./scripts/counts.py "${{ needs.setup.outputs.package }}"
+  #         echo "counts<<EOF" >> $GITHUB_OUTPUT
+  #         echo "$(cat $PACKAGE_DIR/${{ needs.setup.outputs.package }}/ci_results.txt)" >> $GITHUB_OUTPUT
+  #         echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: 👷‍♀️ Create Package ID
-        id: create-package-id
-        run: |
-          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ needs.setup.outputs.package }})
-          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
-          echo "Create package id $PACKAGE_ID"
+  #     - name: 🪰 Install Fly CLI
+  #       uses: superfly/flyctl-actions/setup-flyctl@master
+  #       with:
+  #         version: 0.0.368
 
-      - name: 🚀 Deploy Validation Report to Netlify
-        id: netlify
-        uses: nwtgck/actions-netlify@v1.2
-        with:
-          publish-dir: './web/site'
-          deploy-message: "🚀 Deploy from GitHub Actions"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          alias: ${{ steps.create-package-id.outputs.package_id }}
-          fails-without-credentials: true
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-commit-status: false
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+  #     - name: 🌐 Proxy Postgres
+  #       run: |
+  #         exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+  #         sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
 
-      - name: 🏷 PR Deploy Preview Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: ${{ needs.setup.outputs.package }}
-          message: |
-            ## :rocket: Results - ${{ needs.setup.outputs.package }}
+  #     - name: 🗃 Load Ingest Output into DB
+  #       run: |
+  #         source venv/bin/activate
+  #         echo "Initializing database $INGEST_DB_DBNAME ..."
+  #         ./scripts/init_db.py $INGEST_DB_DBNAME -u ${{ env.POSTGRES_ADMIN }} -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
+  #         echo "Loading database $INGEST_DB_DBNAME with ingest data ..."
+  #         ./scripts/load_db.py ${{ needs.setup.outputs.package }} $INGEST_DB_DBNAME 
+      
+  #     - name: 🖥 Build Validation Website
+  #       run: |
+  #         source venv/bin/activate
+  #         ./scripts/prep_web.py ${{ needs.setup.outputs.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
+  #         cd web && mkdocs build && cd ..
 
-            Latest commit: ${{ github.event.pull_request.head.sha }}
+  #     - name: 👷‍♀️ Create Package ID
+  #       id: create-package-id
+  #       run: |
+  #         PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ needs.setup.outputs.package }})
+  #         echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
+  #         echo "Create package id $PACKAGE_ID"
 
-            ## 🚦 Validation Report
-            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
-            output of the ingested data from each stage 
+  #     - name: 🚀 Deploy Validation Report to Netlify
+  #       id: netlify
+  #       uses: nwtgck/actions-netlify@v1.2
+  #       with:
+  #         publish-dir: './web/site'
+  #         deploy-message: "🚀 Deploy from GitHub Actions"
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         alias: ${{ steps.create-package-id.outputs.package_id }}
+  #         fails-without-credentials: true
+  #         enable-pull-request-comment: false
+  #         enable-commit-comment: false
+  #         enable-commit-status: false
+  #       env:
+  #         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  #         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-            ${{ steps.count.outputs.counts }}
+  #     - name: 🏷 PR Deploy Preview Comment
+  #       uses: marocchino/sticky-pull-request-comment@v2
+  #       with:
+  #         header: ${{ needs.setup.outputs.package }}
+  #         message: |
+  #           ## :rocket: Results - ${{ needs.setup.outputs.package }}
+
+  #           Latest commit: ${{ github.event.pull_request.head.sha }}
+
+  #           ## 🚦 Validation Report
+  #           [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
+  #           output of the ingested data from each stage 
+
+  #           ${{ steps.count.outputs.counts }}
 
   teardown:
     name: 🔥 Teardown 
