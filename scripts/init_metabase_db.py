@@ -1,46 +1,41 @@
 #!/usr/bin/env python
 
+import db
+import argparse
 import os
 import psycopg2
 from psycopg2 import sql
-import argparse
 
-from config import (
-    METABASE_DB_USER,
-    METABASE_DB_PASSWORD,
-)
-from scripts import db
+PG_ADMIN = os.environ["POSTGRES_ADMIN"]
+PG_ADMIN_PASSWORD = os.environ["POSTGRES_ADMIN_PASSWORD"]
 
 
-def init_db(metabase_db, username, password, hostname="localhost", port=5432):
-    """
-    Drop the db if exists and then create a new db
-    Create the metabase app user
-    """
-    # Connect to postgres db
+def init_metabase_db(
+    db_name, username, password, host="localhost", port=5432
+):
     conn = psycopg2.connect(
-        dbname="postgres",
-        user=username, password=password, host=hostname, port=port
+        host=host,
+        port=port,
+        database="postgres",
+        user=PG_ADMIN,
+        password=PG_ADMIN_PASSWORD
     )
 
-    # Drop the db if it exists and then create db
-    db.drop_db(conn, metabase_db)
-
     # Create metabase app user with appropriate permissions
-    print(f"Creating user {METABASE_DB_USER}, {METABASE_DB_PASSWORD}")
-    db.create_user(conn, METABASE_DB_USER, METABASE_DB_PASSWORD)
-
-    print(f"Creating database {metabase_db} ...")
+    db.drop_db(conn, db_name)
+    db.create_user(conn, username, password)
+    print(f"Creating metabase db {db_name}")
     with conn.cursor() as cursor:
         conn.autocommit = True
         cursor.execute(
             sql.SQL(
                 "CREATE DATABASE {0} WITH OWNER = {1};"
             ).format(
-                sql.Identifier(metabase_db),
-                sql.Identifier(METABASE_DB_USER),
+                sql.Identifier(db_name),
+                sql.Identifier(username),
             )
         )
+    conn.close()
 
 
 def cli():
@@ -57,12 +52,12 @@ def cli():
     )
     parser.add_argument(
         "-u", "--username",
-        help="Super username to use when connecting to the database server",
+        help="Metabase username to use when connecting to the database server",
         required=True,
     )
     parser.add_argument(
         "-w", "--password",
-        help="Super user password to use when connecting to the database server",
+        help="Metabase user password to use when connecting to the database server",
         required=True,
     )
     parser.add_argument(
@@ -79,11 +74,11 @@ def cli():
     )
     args = parser.parse_args()
 
-    init_db(
+    init_metabase_db(
         args.metabase_db,
         args.username,
         args.password,
-        hostname=args.hostname,
+        host=args.hostname,
         port=args.port
     )
 
