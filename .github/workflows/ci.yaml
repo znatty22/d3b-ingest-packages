@@ -119,7 +119,6 @@ jobs:
     if: ${{ github.event.action != 'closed' }}
     outputs:
       counts: ${{ steps.count.outputs.counts }}
-      package_id: ${{ steps.create-package-id.outputs.package_id }}
       validation_report_url: ${{ steps.netlify.outputs.deploy-url }}
     steps:
       - name: 👩‍💻 Checkout code
@@ -175,13 +174,6 @@ jobs:
           ./scripts/prep_web.py ${{ needs.setup.outputs.package }} https://github.com/${{ github.repository }}/pull/${{ github.event.number }}
           cd web && mkdocs build && cd ..
 
-      - name: 👷‍♀️ Create Package ID
-        id: create-package-id
-        run: |
-          PACKAGE_ID=$(python -c "exec('import sys\nprint(sys.argv[-1].replace(\'/\',\'-\'))')" ${{ needs.setup.outputs.package }})
-          echo "package_id=$PACKAGE_ID" >> $GITHUB_OUTPUT
-          echo "Create package id $PACKAGE_ID"
-
       - name: 🚀 Deploy Validation Report to Netlify
         id: netlify
         uses: nwtgck/actions-netlify@v1.2
@@ -189,7 +181,7 @@ jobs:
           publish-dir: './web/site'
           deploy-message: "🚀 Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          alias: ${{ steps.create-package-id.outputs.package_id }}
+          alias: ingest-pr${{ github.event.number }} 
           fails-without-credentials: true
           enable-pull-request-comment: false
           enable-commit-comment: false
