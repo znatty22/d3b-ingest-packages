@@ -12,17 +12,26 @@ concurrency:
 env:
   PACKAGE_DIR: d3b_ingest_packages/packages
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
+  FLY_WEB_APP: metabase-ingest-portal-pr${{ github.event.number }} 
+  FLY_POSTGRES_HOSTNAME: ${{ secrets.FLY_POSTGRES_HOSTNAME }}  
   FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
-  POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
   POSTGRES_HOST: localhost
   POSTGRES_PORT: 5432
+  POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
+  POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
   INGEST_PROCESS_USER: ${{ secrets.INGEST_PROCESS_USER }}
   INGEST_PROCESS_PASSWORD: ${{ secrets.INGEST_PROCESS_PASSWORD }}
   INGEST_VIEWER_USER: ${{ secrets.INGEST_VIEWER_USER }}
   INGEST_VIEWER_PASSWORD: ${{ secrets.INGEST_VIEWER_PASSWORD }}
   INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
+  MB_DB_TYPE: postgres
+  MB_DB_DBNAME: metabase_db_pr${{ github.event.number }}
+  MB_DB_USER: ${{ secrets.MB_DB_USER }} 
+  MB_DB_PASS: ${{ secrets.MB_DB_PASS }} 
+  MB_APP_ADMIN: ${{ github.event.pull_request.base.user.login }}
+  MB_APP_ADMIN_PASS: ${{ secrets.METABASE_APP_ADMIN_PASS }} 
+  MB_APP_ADMIN_EMAIL: ${{ github.event.pull_request.base.user.login }}@example.com
 
 jobs:
   setup:
@@ -31,6 +40,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       package: ${{ steps.package_path.outputs.package }}
+      metabase_app_url: ${{ steps.app_url.outputs.metabase_app_url }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -55,6 +65,52 @@ jobs:
           echo "Package path $PACKAGE "
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
 
+      - name: 🛠 Create metabase app url
+        id: app_url
+        run: |
+          MB_APP_URL=https://${{ env.FLY_WEB_APP }}.fly.dev
+          echo "metabase_app_url=$MB_APP_URL" >> $GITHUB_OUTPUT
+          echo "Metabaase App URL: $MB_APP_URL"
+
+  create-metabase-app:
+    name: ✨ Create Metabase App 
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed' }}
+    timeout-minutes: 10
+    outputs:
+      metabase_exists: ${{ steps.check.outputs.metabase_exists }}
+    steps:
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+
+      - name: 🧐 Check app exists
+        id: check
+        run: |
+          METABASE_EXISTS=$(echo $(flyctl apps list | grep -E -cim1 '^${{ env.FLY_WEB_APP }}\s+'))
+          echo "metabase_exists=$METABASE_EXISTS" >> $GITHUB_OUTPUT
+
+      - name: ✨ Create app
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl apps create --name ${{ env.FLY_WEB_APP }}
+
+      - name: 🧱 Set app scale
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl scale memory --app ${{ env.FLY_WEB_APP }} 2048
+
+      - name: 🔐 Set app deployment secrets
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: |
+          # These secrets are needed to deploy metabase
+          flyctl secrets --app ${{ env.FLY_WEB_APP }} set \
+            MB_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }} \
+            MB_DB_PORT=${{ env.POSTGRES_PORT }} \
+            MB_DB_DBNAME=${{ env.MB_DB_DBNAME }} \
+            MB_DB_USER=${{ env.MB_DB_USER }} \
+            MB_DB_PASS=${{ env.MB_DB_PASS }} \
+            MB_DB_TYPE=${{ env.MB_DB_TYPE }}
+
   ingest:
     name: 🚦 Ingest Dry Run 
     runs-on: ubuntu-20.04
@@ -64,6 +120,7 @@ jobs:
     outputs:
       counts: ${{ steps.count.outputs.counts }}
       package_id: ${{ steps.create-package-id.outputs.package_id }}
+      validation_report_url: ${{ steps.netlify.outputs.deploy-url }}
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -141,6 +198,75 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
+  deploy-metabase:
+    name: 🚀 Deploy Metabase App 
+    needs: [setup, create-metabase-app, ingest] 
+    runs-on: ubuntu-20.04
+    # Only create app, init db, and deploy metabase if metabase app does not exist 
+    if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
+    timeout-minutes: 10
+    steps:
+       - name: 👩‍💻 Checkout code
+         uses: actions/checkout@v3
+
+       - name: 🐍 Setup Python
+         uses: actions/setup-python@v3
+         with:
+           python-version: '3.8'
+
+       - name: 📦 Install deps
+         run: |
+           pip install --upgrade virtualenv
+           virtualenv -p python3 venv
+           source venv/bin/activate
+           pip install -e .
+      
+       - name: 🪰 Install Fly CLI
+         uses: superfly/flyctl-actions/setup-flyctl@master
+         with:
+           version: 0.0.368
+          
+       - name: 🌐 Proxy Postgres
+         run: |
+           exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
+           sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
+           
+       - name: 🗃 Init metabase DB
+         run: |
+           source venv/bin/activate
+           echo "Initializing metabase $MB_DB_DBNAME ..."
+           ./scripts/init_metabase_db.py $MB_DB_DBNAME -u $MB_DB_USER -w $MB_DB_PASS -n $POSTGRES_HOST -p $POSTGRES_PORT
+           
+       - name: 🚀 Fly deploy
+         run: |
+          flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
+
+       - name: ⏰ Wait for Init Complete
+         id: metabase-init-check
+         run: |
+           INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
+           echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
+
+       - name: 🛠 Set metabase app env vars
+         run: |
+           echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
+       
+       - name: 🛠 Setup metabase app
+         if: ${{ steps.metabase-init-check.outputs.init_complete != '0' }} 
+         run: |
+           source venv/bin/activate
+           echo "Setting up metabase admin user ${{ env.MB_APP_ADMIN }} and db connection to ${{ env.INGEST_DB_DBNAME }} ..."
+           export INGEST_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }}
+           export INGEST_DB_PORT=${{ env.POSTGRES_PORT }}
+           ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ needs.setup.outputs.package }}  
+
+  pr-comment:
+    name: 🏷 Create PR Comment 
+    needs: [setup, ingest] 
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed'}}
+    timeout-minutes: 10
+    steps:
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
@@ -150,8 +276,15 @@ jobs:
 
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
-            ## 🚦 Validation Report
-            [View the validation report](${{ steps.netlify.outputs.deploy-url }}) to see the results of standard data checks performed on the 
+             ### 📊 Ingest Data Portal 
+             [View the portal](${{ needs.setup.outputs.metabase_app_url }}) to explore the output tables of your ingest package
+             in a postgres database. Admin login info:  
+
+             **Username**: ${{ env.MB_APP_ADMIN_EMAIL }}
+             **Password**: Ask the github repo admin 
+               
+            ### 🚦 Validation Report
+            [View the validation report](${{ needs.ingest.outputs.validation_report_url }}) to see the results of standard data checks performed on the 
             output of the ingested data from each stage 
 
             ${{ steps.count.outputs.counts }}
@@ -161,7 +294,6 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ github.ref != 'refs/heads/main' && github.event.action == 'closed' }}
     timeout-minutes: 15
-    needs: setup 
     steps:
       - name: 👩‍💻 Checkout code
         uses: actions/checkout@v3
@@ -188,7 +320,25 @@ jobs:
           exec 3< <( flyctl proxy 5432 -a ${{ env.FLY_POSTGRES_APP }})
           sed '/Proxying local port 5432/q' <&3 ; cat <&3 &
 
-      - name: 🚮 Drop PR db
+      - name: 🚮 Drop dbs
         run: |
           source venv/bin/activate
-          ./scripts/drop_db.py $INGEST_DB_DBNAME -u ${{ env.POSTGRES_ADMIN }} -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
+
+          ./scripts/drop_db.py $INGEST_DB_DBNAME \
+          -u ${{ env.POSTGRES_ADMIN }} \
+          -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
+
+          ./scripts/drop_db.py $MB_DB_DBNAME \
+          -u ${{ env.POSTGRES_ADMIN }} \
+          -w ${{ env.POSTGRES_ADMIN_PASSWORD }} 
+
+      - name: 🧐 Check app exists
+        id: check
+        run: |
+          METABASE_EXISTS=$(echo $(flyctl apps list | grep -E -cim1 '^${{ env.FLY_WEB_APP }}\s+'))
+          echo "metabase_exists=$METABASE_EXISTS" >> $GITHUB_OUTPUT
+
+      - name: 🔥 Destroy app
+        if: ${{ steps.check.outputs.metabase_exists != '0' }}
+        run: flyctl apps destroy ${{ env.FLY_WEB_APP }} -y
+

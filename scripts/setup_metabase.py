@@ -21,7 +21,7 @@ from config import (
 from scripts import db
 
 
-def setup_metabase(ingest_db, package_path):
+def setup_metabase(ingest_db, ingest_db_title):
     """
     Setup the first user in the metabase app. This will be the admin
     user
@@ -30,7 +30,7 @@ def setup_metabase(ingest_db, package_path):
     print("📊 Begin setting up metabase app ...")
 
     # Send request to get setup token
-    print("🔐 Get setup token ...")
+    print(f"🔐 Get setup token from {METABASE_APP_URL}...")
     headers = {"Content-Type": "application/json"}
     try:
         resp = requests.get(
@@ -59,7 +59,7 @@ def setup_metabase(ingest_db, package_path):
             "email": METABASE_APP_ADMIN_EMAIL
         }
     )
-    setup_payload["database"]["name"] = package_path
+    setup_payload["database"]["name"] = ingest_db_title
     setup_payload["database"]["details"] = {
         "host": INGEST_DB_HOST,
         "port": int(INGEST_DB_PORT),
@@ -101,6 +101,20 @@ def cli():
         "should be relative to d3b_ingest_packages/packages directory",
     )
     args = parser.parse_args()
+
+    print(f"Setting up metabase with args {args}")
+    # print("Environment variables")
+    # v = {
+    #     "INGEST_DB_HOST": INGEST_DB_HOST,
+    #     "INGEST_DB_PORT": INGEST_DB_PORT,
+    #     "INGEST_VIEWER_USER": INGEST_VIEWER_USER,
+    #     "INGEST_VIEWER_PASSWORD": INGEST_VIEWER_PASSWORD,
+    #     "METABASE_APP_ADMIN": METABASE_APP_ADMIN,
+    #     "METABASE_APP_ADMIN_PASSWORD": METABASE_APP_ADMIN_PASSWORD,
+    #     "METABASE_APP_ADMIN_EMAIL": METABASE_APP_ADMIN_EMAIL,
+    #     "METABASE_APP_URL": METABASE_APP_URL,
+    #     "package_path": args.package_path
+    # }
 
     setup_metabase(args.ingest_db, args.package_path)
 
