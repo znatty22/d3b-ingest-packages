@@ -12,25 +12,25 @@ concurrency:
 env:
   PACKAGE_DIR: d3b_ingest_packages/packages
   KF_STUDY_CREATOR_API_TOKEN: ${{ secrets.KF_STUDY_CREATOR_API_TOKEN }} 
-  FLY_POSTGRES_HOSTNAME: d3b-ingest-sandbox-postgres.internal  
-  FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_WEB_APP: metabase-ingest-portal-pr${{ github.event.number }} 
+  FLY_POSTGRES_HOSTNAME: ${{ secrets.FLY_POSTGRES_HOSTNAME }}  
+  FLY_POSTGRES_APP: ${{ secrets.FLY_POSTGRES_APP }} 
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-  POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
-  POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
   POSTGRES_HOST: localhost
   POSTGRES_PORT: 5432
+  POSTGRES_ADMIN: ${{ secrets.POSTGRES_ADMIN }} 
+  POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }} 
   INGEST_PROCESS_USER: ${{ secrets.INGEST_PROCESS_USER }}
   INGEST_PROCESS_PASSWORD: ${{ secrets.INGEST_PROCESS_PASSWORD }}
   INGEST_VIEWER_USER: ${{ secrets.INGEST_VIEWER_USER }}
   INGEST_VIEWER_PASSWORD: ${{ secrets.INGEST_VIEWER_PASSWORD }}
   INGEST_DB_DBNAME: ingest_db_pr${{ github.event.number }}
-  MB_DB_DBNAME: metabase_db_pr${{ github.event.number }}
   MB_DB_TYPE: postgres
-  MB_DB_USER: metabase_db_admin 
-  MB_DB_PASS: metabase_db_admin_pw 
+  MB_DB_DBNAME: metabase_db_pr${{ github.event.number }}
+  MB_DB_USER: ${{ secrets.MB_DB_USER }} 
+  MB_DB_PASS: ${{ secrets.MB_DB_PASS }} 
   MB_APP_ADMIN: ${{ github.event.pull_request.base.user.login }}
-  MB_APP_ADMIN_PASS: metabase_app_@dmin_1234! 
+  MB_APP_ADMIN_PASS: ${{ secrets.METABASE_APP_ADMIN_PASS }} 
   MB_APP_ADMIN_EMAIL: ${{ github.event.pull_request.base.user.login }}@example.com
 
 jobs:
