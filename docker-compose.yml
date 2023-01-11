@@ -5,7 +5,7 @@ services:
     image: "postgres:14"
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_USER: ${POSTGRES_ADMIN}
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DBNAME}
     # -- Uncomment if you want to use a different port than 5432
