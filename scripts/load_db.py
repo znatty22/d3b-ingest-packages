@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import argparse
+from multiprocessing import Pool, cpu_count
 import os
 import time
+from pprint import pprint
 
 import sqlalchemy
 import pandas
@@ -36,6 +38,21 @@ def chunked_dataframe_reader(filepath, batch_size=DEFAULT_BATCH_SIZE):
         yield chunk
 
 
+def create_conn(
+    db_name, username, password, hostname="localhost", port=5432
+):
+    """
+    Create a SQLAlchemy Engine to connect to a postgres database
+    """
+    conn_str = (
+        f"postgres://{username}:{password}@{hostname}:{port}/{db_name}"
+    )
+    return sqlalchemy.create_engine(
+        conn_str,
+        connect_args={"connect_timeout": 5},
+    )
+
+
 def load_table_from_file(
     filepath, schema_name, batch_size, sqla_engine=None, **db_conn_args
 ):
@@ -47,24 +64,17 @@ def load_table_from_file(
 
     dispose_at_end = False
     if not sqla_engine:
-        print(f"Creating connection to postgres @ {hostname}")
         # Create connection to db
         try:
             username = db_conn_args["username"]
             password = db_conn_args["password"]
             hostname = db_conn_args["hostname"]
             port = db_conn_args["port"]
-            db_name = db_conn_args["dbname"]
+            db_name = db_conn_args["db_name"]
         except KeyError as e:
             print("Not enough inputs to connect to database!")
             raise
-        conn_str = (
-            f"postgres://{username}:{password}@{hostname}:{port}/{db_name}"
-        )
-        sqla_engine = sqlalchemy.create_engine(
-            conn_str,
-            connect_args={"connect_timeout": 5},
-        )
+        sqla_engine = create_conn(db_name, username, password, hostname, port)
         dispose_at_end = True
 
     filename = os.path.split(filepath)[-1]
@@ -88,14 +98,25 @@ def load_table_from_file(
             chunksize=batch_size,
         )
         count += df.shape[0]
-        print(f"-- Loaded {count} total rows")
+        # print(f"-- Loaded {count} total rows")
 
     if dispose_at_end:
-        eng.dispose()
+        sqla_engine.dispose()
 
     elapsed = time.time() - start_time
     elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed))
-    print(f"\nElapsed time (hh:mm:ss): {elapsed_time_hms}\n")
+    # print(f"\nElapsed time (hh:mm:ss): {elapsed_time_hms}\n")
+
+    return filename, count, elapsed_time_hms
+
+
+def job_wrapper(arg):
+    """
+    Wrapper which unpacks args and keyword args before calling
+    the function which will be run in a multiprocess Pool function
+    """
+    args, kwargs = arg
+    return load_table_from_file(*args, **kwargs)
 
 
 def load_db(
@@ -108,22 +129,13 @@ def load_db(
     """
     start_time = time.time()
 
-    # Create conn string
-    conn_str = (
-        f"postgres://{username}:{password}@{hostname}:{port}/{db_name}"
-    )
-    eng = sqlalchemy.create_engine(
-        conn_str,
-        connect_args={"connect_timeout": 5},
-    )
-
-    # Read tables from disk
+    # Prepare inputs for parallel db load
+    # Parallelize over the files to load
     stages = {
         "ExtractStage": "ExtractStage",
         "GuidedTransformStage": "TransformStage"
     }
-
-    # Load tables into db
+    inputs = []
     for stage_dir, stage_name in stages.items():
         schema_name = stage_name
         data_dir = os.path.join(
@@ -139,15 +151,34 @@ def load_db(
                 print(f"Not a valid ingest file, skipping {filename}")
                 continue
 
-            load_table_from_file(
-                filepath, schema_name, DEFAULT_BATCH_SIZE, sqla_engine=eng
+            db_conn_args = {
+                "db_name": db_name,
+                "hostname": hostname,
+                "port": port,
+                "username": username,
+                "password": password,
+            }
+            inputs.append(
+                ((filepath, schema_name, DEFAULT_BATCH_SIZE), db_conn_args)
             )
 
-    eng.dispose()
+    # Load tables into db in parallel, 1 db connection per process
+    cpus = int(cpu_count()/2)
+    print(
+        f"Parallelize load into db. Using {cpus} of {cpu_count()}"
+        " total cpus"
+    )
+    with Pool(cpus) as p:
+        out = p.map(job_wrapper, inputs)
+
+    print(f"\nFilename, Total Rows Inserted, Elapsed Time hh:mm:ss")
+    for item in out:
+        filename, count, elapsed = item
+        print(f"{filename}, {count}, {elapsed}")
 
     elapsed = time.time() - start_time
     elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed))
-    print(f"Total elapsed time (hh:mm:ss): {elapsed_time_hms}")
+    print(f"\nTotal elapsed time (hh:mm:ss): {elapsed_time_hms}")
 
 
 def cli():
