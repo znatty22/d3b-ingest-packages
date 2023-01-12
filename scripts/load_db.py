@@ -36,6 +36,68 @@ def chunked_dataframe_reader(filepath, batch_size=DEFAULT_BATCH_SIZE):
         yield chunk
 
 
+def load_table_from_file(
+    filepath, schema_name, batch_size, sqla_engine=None, **db_conn_args
+):
+    """
+    Create a table within the specified schema and load it with the data
+    from file
+    """
+    start_time = time.time()
+
+    dispose_at_end = False
+    if not sqla_engine:
+        print(f"Creating connection to postgres @ {hostname}")
+        # Create connection to db
+        try:
+            username = db_conn_args["username"]
+            password = db_conn_args["password"]
+            hostname = db_conn_args["hostname"]
+            port = db_conn_args["port"]
+            db_name = db_conn_args["dbname"]
+        except KeyError as e:
+            print("Not enough inputs to connect to database!")
+            raise
+        conn_str = (
+            f"postgres://{username}:{password}@{hostname}:{port}/{db_name}"
+        )
+        sqla_engine = sqlalchemy.create_engine(
+            conn_str,
+            connect_args={"connect_timeout": 5},
+        )
+        dispose_at_end = True
+
+    filename = os.path.split(filepath)[-1]
+    table_name = sanitize_tablename(os.path.splitext(filename)[0])
+    count = 0
+    batch_size = DEFAULT_BATCH_SIZE
+
+    # Stream data from file
+    print(f"\nLoading file {filename} into db table {table_name}...")
+    for i, df in enumerate(
+        chunked_dataframe_reader(filepath, batch_size)
+    ):
+        # Bulk insert rows into db table
+        df.to_sql(
+            table_name,
+            sqla_engine,
+            schema=schema_name,
+            if_exists="replace",
+            index=False,
+            method="multi",
+            chunksize=batch_size,
+        )
+        count += df.shape[0]
+        print(f"-- Loaded {count} total rows")
+
+    if dispose_at_end:
+        eng.dispose()
+
+    elapsed = time.time() - start_time
+    elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed))
+    print(f"\nElapsed time (hh:mm:ss): {elapsed_time_hms}\n")
+
+
 def load_db(
     package_path, db_name, username, password, hostname="localhost", port=5432
 ):
@@ -74,38 +136,18 @@ def load_db(
                 filename == "metadata.json" or
                 filename.startswith(".")
             ):
+                print(f"Not a valid ingest file, skipping {filename}")
                 continue
 
-            print(f"Loading file {filename} into db ...")
-            count = 0
-            batch_size = DEFAULT_BATCH_SIZE
-            for i, df in enumerate(
-                chunked_dataframe_reader(filepath, batch_size)
-            ):
-                table_name = sanitize_tablename(os.path.splitext(filename)[0])
-                df.to_sql(
-                    table_name,
-                    eng,
-                    schema=schema_name,
-                    if_exists="replace",
-                    index=False,
-                    method="multi",
-                    chunksize=10000,
-                )
-                count += df.shape[0]
-                print(f"-- Loaded {count} total rows")
-
-            elapsed_time = time.time() - start_time
-            elapsed_time_hms = time.strftime(
-                '%H:%M:%S', time.gmtime(elapsed_time)
+            load_table_from_file(
+                filepath, schema_name, DEFAULT_BATCH_SIZE, sqla_engine=eng
             )
-            print(f"\nElapsed time (hh:mm:ss): {elapsed_time_hms}\n")
 
     eng.dispose()
 
     elapsed = time.time() - start_time
-    elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed_time))
-    print(f"\nTotal elapsed time (hh:mm:ss): {elapsed_time_hms}")
+    elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed))
+    print(f"Total elapsed time (hh:mm:ss): {elapsed_time_hms}")
 
 
 def cli():
