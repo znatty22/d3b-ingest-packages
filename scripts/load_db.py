@@ -2,8 +2,10 @@
 
 import argparse
 import os
+import time
 
 import sqlalchemy
+import pandas
 
 from kf_lib_data_ingest.common.io import read_df
 from config import PACKAGES_DIR
@@ -13,12 +15,25 @@ from config import (
     INGEST_PROCESS_PASSWORD,
 )
 
+DEFAULT_BATCH_SIZE = 10000
+
 
 def sanitize_tablename(table_name):
     """
     Remove invalid characters like hyphens
     """
     return "_".join(table_name.split("-"))
+
+
+def chunked_dataframe_reader(filepath, batch_size=DEFAULT_BATCH_SIZE):
+    """
+    Read a tabular file into chunks of Dataframes and return a generator
+    over those Dataframes
+    """
+    for i, chunk in enumerate(
+        pandas.read_csv(filepath, sep="\t", chunksize=batch_size)
+    ):
+        yield chunk
 
 
 def load_db(
@@ -29,6 +44,8 @@ def load_db(
     User must have permissions to create schema, create tables, insert, delete,
     update tables
     """
+    start_time = time.time()
+
     # Create conn string
     conn_str = (
         f"postgres://{username}:{password}@{hostname}:{port}/{db_name}"
@@ -60,21 +77,35 @@ def load_db(
                 continue
 
             print(f"Loading file {filename} into db ...")
+            count = 0
+            batch_size = DEFAULT_BATCH_SIZE
+            for i, df in enumerate(
+                chunked_dataframe_reader(filepath, batch_size)
+            ):
+                table_name = sanitize_tablename(os.path.splitext(filename)[0])
+                df.to_sql(
+                    table_name,
+                    eng,
+                    schema=schema_name,
+                    if_exists="replace",
+                    index=False,
+                    method="multi",
+                    chunksize=10000,
+                )
+                count += df.shape[0]
+                print(f"-- Loaded {count} total rows")
 
-            df = read_df(filepath)
-
-            table_name = sanitize_tablename(os.path.splitext(filename)[0])
-
-            df.to_sql(
-                table_name,
-                eng,
-                schema=schema_name,
-                if_exists="replace",
-                index=False,
-                method="multi",
-                chunksize=10000,
+            elapsed_time = time.time() - start_time
+            elapsed_time_hms = time.strftime(
+                '%H:%M:%S', time.gmtime(elapsed_time)
             )
+            print(f"\nElapsed time (hh:mm:ss): {elapsed_time_hms}\n")
+
     eng.dispose()
+
+    elapsed = time.time() - start_time
+    elapsed_time_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed_time))
+    print(f"\nTotal elapsed time (hh:mm:ss): {elapsed_time_hms}")
 
 
 def cli():
