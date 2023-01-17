@@ -34,5 +34,9 @@ operations = cardiac_abnormalities.operations + [
         m=kfid,
         out_col="DATA_TRACKER_FILE_ID"
     ),
+    constant_map(
+        m="hello",
+        out_col="Another column"
+    ),
 
 ]
