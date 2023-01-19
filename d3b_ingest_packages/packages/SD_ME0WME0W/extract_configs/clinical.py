@@ -59,5 +59,9 @@ operations = [
     keep_map(
         in_col='diagnosis',
         out_col=CONCEPT.DIAGNOSIS.NAME
-    )
+    ),
+    constant_map(
+        out_col=CONCEPT.BIOSPECIMEN.COMPOSITION,
+        m=constants.SPECIMEN.COMPOSITION.BLOOD
+    ),
 ]
