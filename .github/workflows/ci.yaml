@@ -198,8 +198,8 @@ jobs:
     if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists != '0' }}
     timeout-minutes: 10
     outputs:
-      metabase_deployed: ${{ steps.deploy-check.outputs.metabase_deployed }}
-      metabase_setup: ${{ steps.setup-check.outputs.metabase_setup }}
+      metabase_deployed: ${{ steps.store-deploy-check.outputs.metabase_deployed }}
+      metabase_setup: ${{ steps.store-setup-check.outputs.metabase_setup }}
     steps:
        - name: 👩‍💻 Checkout code
          uses: actions/checkout@v3
@@ -209,17 +209,21 @@ jobs:
            echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
 
        - name: 🩺 Check metabase health 
-         id: deploy-check
-         if: ${{ always() }}
+         id: deploy-check 
+         continue-on-error: true
          run: |
-           CHECK=$(curl -f -X GET $MB_APP_URL/api/health)
-           $METABASE_DEPLOYED=$(echo $?) 
+           curl -f -X GET $MB_APP_URL/api/health
+
+       - name: 💼 Store metabase health 
+         id: store-deploy-check 
+         run: |
+           METABASE_DEPLOYED=${{ steps.deploy-check.outcome }} 
            echo "metabase_deployed=$METABASE_DEPLOYED" >> $GITHUB_OUTPUT
            echo "Metabase deployed? $METABASE_DEPLOYED"
 
        - name: 🛂 Get metabase token 
+         continue-on-error: true
          id: metabase-token
-         if: ${{ always() }}
          run: |
            METABASE_TOKEN=$(curl -s -X POST http://$MB_APP_URL/api/session \
                -H "Content-type: application/json" \
@@ -231,15 +235,18 @@ jobs:
            echo "Metabase token? $METABASE_TOKEN"
 
        - name: 🛠 Check metabase setup 
-         id: setup-check 
-         if: ${{ always() }}
+         id: setup-check
+         continue-on-error: true
          run: |
-           TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
+           METABASE_TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
            curl -f -XGET "http://$MB_APP_URL/api/user" \
                -H 'Content-Type: application/json' \
-               -H "X-Metabase-Session: $TOKEN" 
+               -H "X-Metabase-Session: $METABASE_TOKEN" 
 
-           $METABASE_SETUP=$(echo $?) 
+       - name: 💼 Store metabase setup 
+         id: store-setup-check 
+         run: |
+           METABASE_SETUP=${{ steps.setup-check.outcome }} 
            echo "metabase_setup=$METABASE_SETUP" >> $GITHUB_OUTPUT
            echo "Metabase setup? $METABASE_SETUP"
           
@@ -248,7 +255,7 @@ jobs:
     name: 🚀 Deploy Metabase App 
     needs: [ healthcheck ] 
     runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_deployed != '0' }}
+    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_deployed != 'success' }}
     timeout-minutes: 10
     steps:
        - name: 👩‍💻 Checkout code
@@ -309,7 +316,7 @@ jobs:
     name: 🛠 Setup Metabase Admin User
     needs: [ setup, deploy-metabase ]  
     runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_setup != '0' }}
+    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_setup != 'success' }}
     timeout-minutes: 10
     steps:
        - name: 👩‍💻 Checkout code
