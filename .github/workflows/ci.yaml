@@ -293,25 +293,6 @@ jobs:
          run: |
           flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
 
-       # - name: ⏰ Wait for Init Complete
-       #   id: metabase-init-check
-       #   run: |
-       #     INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
-       #     echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
-
-       # - name: 🛠 Set metabase app env vars
-       #   run: |
-       #     echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
-       
-       # - name: 🛠 Setup metabase app
-       #   if: ${{ steps.metabase-init-check.outputs.init_complete != '0' }} 
-       #   run: |
-       #     source venv/bin/activate
-       #     echo "Setting up metabase admin user ${{ env.MB_APP_ADMIN }} and db connection to ${{ env.INGEST_DB_DBNAME }} ..."
-       #     export INGEST_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }}
-       #     export INGEST_DB_PORT=${{ env.POSTGRES_PORT }}
-       #     ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ needs.setup.outputs.package }}  
-
   setup-metabase:
     name: 🛠 Setup Metabase Admin User
     needs: [ setup, deploy-metabase ]  
@@ -370,11 +351,11 @@ jobs:
         with:
           header: ${{ needs.setup.outputs.package }}-ingest
           message: |
-            ## :rocket: Results - ${{ needs.setup.outputs.package }}
+            ## 🚦 Validation Results - ${{ needs.setup.outputs.package }}
 
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
-            ### 🚦 Validation Report
+            ### 🗒️ Validation Report
             [View the validation report](${{ needs.ingest.outputs.validation_report_url }}) to see the results of standard data checks performed on the 
             output of the ingested data from each stage 
 
@@ -392,7 +373,7 @@ jobs:
         with:
           header: ${{ needs.setup.outputs.package }}-metabase
           message: |
-            ## :rocket: Explore - ${{ needs.setup.outputs.package }}
+            ## 🔎 Explore Your Data - ${{ needs.setup.outputs.package }}
 
              ### 📊 Ingest Data Portal 
              [View the portal](${{ needs.setup.outputs.metabase_app_url }}) to explore the output tables of your ingest package
