@@ -192,6 +192,7 @@ jobs:
             MB_DB_TYPE=${{ env.MB_DB_TYPE }}
 
   healthcheck:
+    name: ❤️‍🩹 Metabase Health Check
     needs: create-metabase-app
     runs-on: ubuntu-20.04
     if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
@@ -347,8 +348,8 @@ jobs:
            export INGEST_DB_PORT=${{ env.POSTGRES_PORT }}
            ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ needs.setup.outputs.package }}  
 
-  pr-comment:
-    name: 🏷 Create PR Comment 
+  pr-comment-ingest:
+    name: 🏷 Create Ingest PR Comment 
     needs: [setup, ingest] 
     runs-on: ubuntu-20.04
     if: ${{ github.event.action != 'closed'}}
@@ -363,18 +364,32 @@ jobs:
 
             Latest commit: ${{ github.event.pull_request.head.sha }}
 
+            ### 🚦 Validation Report
+            [View the validation report](${{ needs.ingest.outputs.validation_report_url }}) to see the results of standard data checks performed on the 
+            output of the ingested data from each stage 
+
+            ${{ needs.ingest.outputs.counts }}
+
+  pr-comment-metabase:
+    name: 🏷 Create Metabase PR Comment 
+    needs: [ setup, setup-metabase ] 
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed'}}
+    timeout-minutes: 10
+    steps:
+      - name: 🏷 PR Deploy Preview Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ${{ needs.setup.outputs.package }}
+          message: |
+            ## :rocket: Explore - ${{ needs.setup.outputs.package }}
+
              ### 📊 Ingest Data Portal 
              [View the portal](${{ needs.setup.outputs.metabase_app_url }}) to explore the output tables of your ingest package
              in a postgres database. Admin login info:  
 
              **Username**: ${{ env.MB_APP_ADMIN_EMAIL }}
              **Password**: Ask the github repo admin 
-               
-            ### 🚦 Validation Report
-            [View the validation report](${{ needs.ingest.outputs.validation_report_url }}) to see the results of standard data checks performed on the 
-            output of the ingested data from each stage 
-
-            ${{ needs.ingest.outputs.counts }}
 
   teardown:
     name: 🔥 Teardown 
