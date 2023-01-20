@@ -11,7 +11,7 @@ set -e
 
 echo "➡️ Begin development environment setup ..."
 
-echo "🐍 Setup Python virtual env and install deps ..."
+echo "\n🐍 Setup Python virtual env and install deps ..."
 if [ ! -d venv ]; then
     virtualenv venv
     source venv/bin/activate
@@ -21,27 +21,28 @@ else
 fi
 
 
-echo "🗂 Create sample ingest data ..."
+echo "\n🗂 Create sample ingest data ..."
 kidsfirst test d3b_ingest_packages/packages/SD_ME0WME0W
 
-echo "🐳 Start postgres db ..."
-source .env && source .env.fly
+echo "\n🐳 Start postgres db ..."
+source .env.local
 docker-compose down
 docker-compose up -d postgres-db 
 
 sleep 3
 
-echo "🗃 Bootstrap postgres dbs ..."
-./scripts/init_metabase.py metabase_db -u $POSTGRES_ADMIN -w $POSTGRES_ADMIN_PASSWORD -p 5432
-./scripts/init_db.py ingest_db -u $POSTGRES_ADMIN -w $POSTGRES_ADMIN_PASSWORD -p 5432
-./scripts/load_db.py SD_ME0WME0W ingest_db -p 5432
+echo "\n🗃 Bootstrap postgres dbs ..."
+./scripts/init_metabase_db.py $MB_DB_DBNAME -u $MB_DB_USER -w $MB_DB_PASS -p 5432
+./scripts/init_db.py $INGEST_DB_DBNAME -u $POSTGRES_ADMIN -w $POSTGRES_ADMIN_PASSWORD -p 5432
+./scripts/load_db.py SD_ME0WME0W $INGEST_DB_DBNAME -p 5432
 
-echo "🐳 Start metabase app ..."
+echo "\n🐳 Start metabase app ..."
 docker-compose up -d metabase 
 
-sleep 45
+echo "\nWaiting for metabase to deploy (may take a minute) ..."
+docker-compose logs -f metabase | grep -cm1 "Metabase Initialization COMPLETE"
 
-echo "🛠 Setup metabase app ..."
+echo "\n🛠 Setup metabase app ..."
 ./scripts/setup_metabase.py ingest_db SD_ME0EWME0W
 
 echo "✅ --- Development environment setup complete! ---"
