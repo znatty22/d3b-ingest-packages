@@ -225,21 +225,19 @@ jobs:
          continue-on-error: true
          id: metabase-token
          run: |
-           METABASE_TOKEN=$(curl -s -X POST $MB_APP_URL/api/session \
+           token=$(curl -s -X POST $MB_APP_URL/api/session \
                -H "Content-type: application/json" \
                -d '{
                "username": "'$MB_APP_ADMIN_EMAIL'",
                "password": "'$MB_APP_ADMIN_PASS'" 
            }' | jq -r '.id')
-           echo "metabase_token=$METABASE_TOKEN" >> $GITHUB_OUTPUT
-           echo "Metabase token? $METABASE_TOKEN"
+           echo "METABASE_TOKEN=$token" >> $GITHUB_ENV
 
        - name: 🛠 Check metabase setup 
          id: setup-check
          continue-on-error: true
          run: |
-           METABASE_TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
-           curl -f -XGET "$MB_APP_URL/api/user" \
+           curl -s -f -XGET "$MB_APP_URL/api/user" \
                -H 'Content-Type: application/json' \
                -H "X-Metabase-Session: $METABASE_TOKEN" 
 
