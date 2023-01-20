@@ -72,45 +72,6 @@ jobs:
           echo "metabase_app_url=$MB_APP_URL" >> $GITHUB_OUTPUT
           echo "Metabaase App URL: $MB_APP_URL"
 
-  create-metabase-app:
-    name: ✨ Create Metabase App 
-    runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed' }}
-    timeout-minutes: 10
-    outputs:
-      metabase_exists: ${{ steps.check.outputs.metabase_exists }}
-    steps:
-      - name: 🪰 Install Fly CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
-        with:
-          version: 0.0.368
-
-      - name: 🧐 Check app exists
-        id: check
-        run: |
-          METABASE_EXISTS=$(echo $(flyctl apps list | grep -E -cim1 '^${{ env.FLY_WEB_APP }}\s+'))
-          echo "metabase_exists=$METABASE_EXISTS" >> $GITHUB_OUTPUT
-
-      - name: ✨ Create app
-        if: ${{ steps.check.outputs.metabase_exists == '0' }}
-        run: flyctl apps create --name ${{ env.FLY_WEB_APP }}
-
-      - name: 🧱 Set app scale
-        if: ${{ steps.check.outputs.metabase_exists == '0' }}
-        run: flyctl scale memory --app ${{ env.FLY_WEB_APP }} 2048
-
-      - name: 🔐 Set app deployment secrets
-        if: ${{ steps.check.outputs.metabase_exists == '0' }}
-        run: |
-          # These secrets are needed to deploy metabase
-          flyctl secrets --app ${{ env.FLY_WEB_APP }} set \
-            MB_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }} \
-            MB_DB_PORT=${{ env.POSTGRES_PORT }} \
-            MB_DB_DBNAME=${{ env.MB_DB_DBNAME }} \
-            MB_DB_USER=${{ env.MB_DB_USER }} \
-            MB_DB_PASS=${{ env.MB_DB_PASS }} \
-            MB_DB_TYPE=${{ env.MB_DB_TYPE }}
-
   ingest:
     name: 🚦 Ingest Dry Run 
     runs-on: ubuntu-20.04
@@ -190,12 +151,100 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
+  create-metabase-app:
+    name: ✨ Create Metabase App 
+    needs: ingest
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed' }}
+    timeout-minutes: 10
+    outputs:
+      metabase_exists: ${{ steps.check.outputs.metabase_exists }}
+    steps:
+      - name: 🪰 Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: 0.0.368
+
+      - name: 🧐 Check app exists
+        id: check
+        run: |
+          METABASE_EXISTS=$(echo $(flyctl apps list | grep -E -cim1 '^${{ env.FLY_WEB_APP }}\s+'))
+          echo "metabase_exists=$METABASE_EXISTS" >> $GITHUB_OUTPUT
+
+      - name: ✨ Create app
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl apps create --name ${{ env.FLY_WEB_APP }}
+
+      - name: 🧱 Set app scale
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: flyctl scale memory --app ${{ env.FLY_WEB_APP }} 2048
+
+      - name: 🔐 Set app deployment secrets
+        if: ${{ steps.check.outputs.metabase_exists == '0' }}
+        run: |
+          # These secrets are needed to deploy metabase
+          flyctl secrets --app ${{ env.FLY_WEB_APP }} set \
+            MB_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }} \
+            MB_DB_PORT=${{ env.POSTGRES_PORT }} \
+            MB_DB_DBNAME=${{ env.MB_DB_DBNAME }} \
+            MB_DB_USER=${{ env.MB_DB_USER }} \
+            MB_DB_PASS=${{ env.MB_DB_PASS }} \
+            MB_DB_TYPE=${{ env.MB_DB_TYPE }}
+
+  healthcheck:
+    needs: create-metabase-app
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
+    timeout-minutes: 10
+    outputs:
+      metabase_deployed: ${{ steps.deploy-check.outputs.metabase_deployed }}
+      metabase_setup: ${{ steps.setup-check.outputs.metabase_setup }}
+    steps:
+       - name: 👩‍💻 Checkout code
+         uses: actions/checkout@v3
+
+       - name: 🩺 Check metabase health 
+         id: deploy-check
+         continue-on-error: true
+         run: |
+           curl -f -X GET $MB_APP_URL/api/health
+           $METABASE_DEPLOYED=$(echo $?) 
+           echo "metabase_deployed=$METABASE_DEPLOYED" >> $GITHUB_OUTPUT
+           echo "Metabase deployed? $METABASE_DEPLOYED"
+
+       - name: 🛂 Get metabase token 
+         id: metabase-token
+         if: ${{ steps.deploy-check.outputs.metabase_deployed == '0' }} 
+         run: |
+           METABASE_TOKEN=$(curl -s -X POST http://$MB_APP_URL/api/session \
+               -H "Content-type: application/json" \
+               -d '{
+               "username": "'$MB_APP_ADMIN_EMAIL'",
+               "password": "'$MB_APP_ADMIN_PASS'" 
+           }' | jq -r '.id')
+           echo "metabase_token=$METABASE_TOKEN" >> $GITHUB_OUTPUT
+           echo "Metabase token? $METABASE_TOKEN"
+
+       - name: 🛠 Check metabase setup 
+         id: setup-check 
+         if: ${{ steps.deploy-check.outputs.metabase_deployed == '0' }} 
+         continue-on-error: true
+         run: |
+           TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
+           curl -f -XGET "http://$MB_APP_URL/api/user" \
+               -H 'Content-Type: application/json' \
+               -H "X-Metabase-Session: $TOKEN" 
+
+           $METABASE_SETUP=$(echo $?) 
+           echo "metabase_setup=$METABASE_SETUP" >> $GITHUB_OUTPUT
+           echo "Metabase setup? $METABASE_SETUP"
+          
+
   deploy-metabase:
     name: 🚀 Deploy Metabase App 
-    needs: [setup, create-metabase-app, ingest] 
+    needs: [ healthcheck ] 
     runs-on: ubuntu-20.04
-    # Only create app, init db, and deploy metabase if metabase app does not exist 
-    if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
+    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_deployed != '0' }}
     timeout-minutes: 10
     steps:
        - name: 👩‍💻 Checkout code
@@ -233,6 +282,52 @@ jobs:
          run: |
           flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
 
+       # - name: ⏰ Wait for Init Complete
+       #   id: metabase-init-check
+       #   run: |
+       #     INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
+       #     echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
+
+       # - name: 🛠 Set metabase app env vars
+       #   run: |
+       #     echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
+       
+       # - name: 🛠 Setup metabase app
+       #   if: ${{ steps.metabase-init-check.outputs.init_complete != '0' }} 
+       #   run: |
+       #     source venv/bin/activate
+       #     echo "Setting up metabase admin user ${{ env.MB_APP_ADMIN }} and db connection to ${{ env.INGEST_DB_DBNAME }} ..."
+       #     export INGEST_DB_HOST=${{ env.FLY_POSTGRES_HOSTNAME }}
+       #     export INGEST_DB_PORT=${{ env.POSTGRES_PORT }}
+       #     ./scripts/setup_metabase.py ${{ env.INGEST_DB_DBNAME }} ${{ needs.setup.outputs.package }}  
+
+  setup-metabase:
+    name: 🛠 Setup Metabase Admin User
+    needs: [ setup, deploy-metabase ]  
+    runs-on: ubuntu-20.04
+    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_setup != '0' }}
+    timeout-minutes: 10
+    steps:
+       - name: 👩‍💻 Checkout code
+         uses: actions/checkout@v3
+
+       - name: 🐍 Setup Python
+         uses: actions/setup-python@v3
+         with:
+           python-version: '3.8'
+
+       - name: 📦 Install deps
+         run: |
+           pip install --upgrade virtualenv
+           virtualenv -p python3 venv
+           source venv/bin/activate
+           pip install -e .
+      
+       - name: 🪰 Install Fly CLI
+         uses: superfly/flyctl-actions/setup-flyctl@master
+         with:
+           version: 0.0.368
+          
        - name: ⏰ Wait for Init Complete
          id: metabase-init-check
          run: |
