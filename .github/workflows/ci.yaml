@@ -193,7 +193,7 @@ jobs:
 
   healthcheck:
     name: ❤️‍🩹 Metabase Health Check
-    needs: create-metabase-app
+    needs: [setup, create-metabase-app] 
     runs-on: ubuntu-20.04
     if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists == '0' }}
     timeout-minutes: 10
@@ -203,6 +203,10 @@ jobs:
     steps:
        - name: 👩‍💻 Checkout code
          uses: actions/checkout@v3
+           
+       - name: 🛠 Set metabase app env vars
+         run: |
+           echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
 
        - name: 🩺 Check metabase health 
          id: deploy-check
