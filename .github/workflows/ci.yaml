@@ -225,7 +225,7 @@ jobs:
          continue-on-error: true
          id: metabase-token
          run: |
-           METABASE_TOKEN=$(curl -s -X POST http://$MB_APP_URL/api/session \
+           METABASE_TOKEN=$(curl -s -X POST $MB_APP_URL/api/session \
                -H "Content-type: application/json" \
                -d '{
                "username": "'$MB_APP_ADMIN_EMAIL'",
@@ -239,7 +239,7 @@ jobs:
          continue-on-error: true
          run: |
            METABASE_TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
-           curl -f -XGET "http://$MB_APP_URL/api/user" \
+           curl -f -XGET "$MB_APP_URL/api/user" \
                -H 'Content-Type: application/json' \
                -H "X-Metabase-Session: $METABASE_TOKEN" 
 
