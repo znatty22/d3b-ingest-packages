@@ -362,7 +362,7 @@ jobs:
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          header: ${{ needs.setup.outputs.package }}
+          header: ${{ needs.setup.outputs.package }}-ingest
           message: |
             ## :rocket: Results - ${{ needs.setup.outputs.package }}
 
@@ -384,7 +384,7 @@ jobs:
       - name: 🏷 PR Deploy Preview Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          header: ${{ needs.setup.outputs.package }}
+          header: ${{ needs.setup.outputs.package }}-metabase
           message: |
             ## :rocket: Explore - ${{ needs.setup.outputs.package }}
 
