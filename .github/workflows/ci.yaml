@@ -210,16 +210,16 @@ jobs:
 
        - name: 🩺 Check metabase health 
          id: deploy-check
-         continue-on-error: true
+         if: ${{ always() }}
          run: |
-           curl -f -X GET $MB_APP_URL/api/health
+           CHECK=$(curl -f -X GET $MB_APP_URL/api/health)
            $METABASE_DEPLOYED=$(echo $?) 
            echo "metabase_deployed=$METABASE_DEPLOYED" >> $GITHUB_OUTPUT
            echo "Metabase deployed? $METABASE_DEPLOYED"
 
        - name: 🛂 Get metabase token 
          id: metabase-token
-         if: ${{ steps.deploy-check.outputs.metabase_deployed == '0' }} 
+         if: ${{ always() }}
          run: |
            METABASE_TOKEN=$(curl -s -X POST http://$MB_APP_URL/api/session \
                -H "Content-type: application/json" \
@@ -232,8 +232,7 @@ jobs:
 
        - name: 🛠 Check metabase setup 
          id: setup-check 
-         if: ${{ steps.deploy-check.outputs.metabase_deployed == '0' }} 
-         continue-on-error: true
+         if: ${{ always() }}
          run: |
            TOKEN=${{ steps.metabase-token.outputs.metabase_token }}
            curl -f -XGET "http://$MB_APP_URL/api/user" \
