@@ -195,7 +195,7 @@ jobs:
     name: ❤️‍🩹 Metabase Health Check
     needs: [setup, create-metabase-app] 
     runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed' && needs.create-metabase-app.outputs.metabase_exists != '0' }}
+    if: ${{ github.event.action != 'closed' }}
     timeout-minutes: 10
     outputs:
       metabase_deployed: ${{ steps.store-deploy-check.outputs.metabase_deployed }}
