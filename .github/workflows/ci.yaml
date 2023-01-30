@@ -301,7 +301,7 @@ jobs:
     name: 🛠 Setup Metabase Admin User
     needs: [ setup, deploy-metabase ]  
     runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_setup != 'success' }}
+    if: ${{ always() && github.event.action != 'closed' && needs.healthcheck.outputs.metabase_setup != 'success' }}
     timeout-minutes: 10
     steps:
        - name: 👩‍💻 Checkout code
@@ -324,7 +324,6 @@ jobs:
            echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
        
        - name: 🛠 Setup metabase app
-         if: ${{ steps.metabase-init-check.outputs.init_complete != '0' }} 
          run: |
            source venv/bin/activate
            echo "Setting up metabase admin user ${{ env.MB_APP_ADMIN }} and db connection to ${{ env.INGEST_DB_DBNAME }} ..."
@@ -358,7 +357,7 @@ jobs:
     name: 🏷 Create Metabase PR Comment 
     needs: [ setup, setup-metabase ] 
     runs-on: ubuntu-20.04
-    if: ${{ github.event.action != 'closed'}}
+    if: ${{ always() && github.event.action != 'closed'}}
     timeout-minutes: 10
     steps:
       - name: 🏷 PR Deploy Preview Comment
