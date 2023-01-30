@@ -251,7 +251,7 @@ jobs:
 
   deploy-metabase:
     name: 🚀 Deploy Metabase App 
-    needs: [ healthcheck ] 
+    needs:  healthcheck  
     runs-on: ubuntu-20.04
     if: ${{ github.event.action != 'closed' && needs.healthcheck.outputs.metabase_deployed != 'success' }}
     timeout-minutes: 10
@@ -291,6 +291,12 @@ jobs:
          run: |
           flyctl deploy --remote-only --app ${{ env.FLY_WEB_APP }} --config fly.metabase.toml
 
+       - name: ⏰ Wait for Init Complete
+         id: metabase-init-check
+         run: |
+           INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
+           echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
+
   setup-metabase:
     name: 🛠 Setup Metabase Admin User
     needs: [ setup, deploy-metabase ]  
@@ -313,17 +319,6 @@ jobs:
            source venv/bin/activate
            pip install -e .
       
-       - name: 🪰 Install Fly CLI
-         uses: superfly/flyctl-actions/setup-flyctl@master
-         with:
-           version: 0.0.368
-          
-       - name: ⏰ Wait for Init Complete
-         id: metabase-init-check
-         run: |
-           INIT_COMPLETE=$(echo $(flyctl logs --app ${{ env.FLY_WEB_APP }} | grep -cm1 "Metabase Initialization COMPLETE"))
-           echo "init_complete=$INIT_COMPLETE" >> $GITHUB_OUTPUT
-
        - name: 🛠 Set metabase app env vars
          run: |
            echo "MB_APP_URL=${{ needs.setup.outputs.metabase_app_url }}" >> $GITHUB_ENV
