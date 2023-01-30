@@ -237,7 +237,7 @@ jobs:
          id: setup-check
          continue-on-error: true
          run: |
-           curl -s -f -XGET "$MB_APP_URL/api/user" \
+           curl -f -o /dev/null -XGET "$MB_APP_URL/api/user" \
                -H 'Content-Type: application/json' \
                -H "X-Metabase-Session: $METABASE_TOKEN" 
 
