@@ -59,5 +59,9 @@ operations = [
     keep_map(
         in_col='diagnosis',
         out_col=CONCEPT.DIAGNOSIS.NAME
-    )
+    ),
+    constant_map(
+        out_col="study_description",
+        m="the study of canines"
+    ),
 ]
