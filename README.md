@@ -59,49 +59,58 @@ to execute the ETL using the ingest package as input.
 As an ingest developer, you will need to have the following skills in order to 
 develop ingest packages: 
 
-- Know at an intermediate level 
-- Understand how to version control code with Git 
-- Understand git development strategies such as Trunk Flow and Git Flow 
-- Understand how to use Pull Requests on Github for code review and request to merge changes 
-- Understand how to write an ingest package with the ingest library
+- Know [Python](https://www.learnpython.org/) at an intermediate level 
+- Know how to use Python [virtual environments](https://realpython.com/python-virtual-environments-a-primer/#why-do-you-need-virtual-environments)
+for your Python projects
+- Understand how to write an ingest package with the [Kids First Ingest Library](https://kids-first.github.io/kf-lib-data-ingest/)
+- Understand [Docker](https://docs.docker.com/get-started/)/[Docker-Compose](https://docs.docker.com/compose/)
+at a basic level in order to run ingest locally
+- Understand how to version control code with [Git](https://www.atlassian.com/git/tutorials)
+- Understand git development strategies such as [Trunk Flow](https://www.atlassian.com/continuous-delivery/continuous-integration/trunk-based-development)
+and [Git Flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) 
+- Understand how to use [Pull Requests](https://www.atlassian.com/git/tutorials/making-a-pull-request) 
+on Github for code review and request to merge changes 
 
-You can find many resources online to learn [Python](https://www.learnpython.org/), 
-[Git](https://www.atlassian.com/git/tutorials), [Trunk Flow](https://www.atlassian.com/continuous-delivery/continuous-integration/trunk-based-development), 
-[Git Flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow), 
-and [Github Pull Requests](https://www.atlassian.com/git/tutorials/making-a-pull-request) 
-
-If you are unfamiliar with the ingest library or the term "ingest package", head on
-over to the [Kids First Ingest Library documentation](https://kids-first.github.io/kf-lib-data-ingest/)
-to learn more before moving forward.
 
 # 👩‍💻 Quick Start 
-
 The quick start does not require knowledge of any pre-requisites as it gives 
 step by step instructions to the reader. It is intended to give a developer
 a quick glance at the end-to-end data development workflow.
 
-In the quick start we are going to do the following: 
+TODO
+
+# 👩🏻‍🎓 Tutorial 
+
+The tutorial is a more detailed version of the quick start by stepping through 
+the typical development workflow for an ingest developer. 
+
+Here is what we will do:
 
 1. Setup our local development environment
 2. Make a small change to an existing example ingest package
-3. Commit our code to a local development branch 
-4. Push our local code to Github and create a Pull Request (PR)
-5. Learn about the Github workflow  
-6. View the ingested data and validation report
+3. Sanity check our change by dry running our ingest 
+4. Test our change by running the full ingest 
+5. Commit our code to a local development branch 
+6. Push our local code to Github and create a Pull Request (PR)
+7. Learn about the Github workflow  
+8. View the ingested data and validation report
 
 ## Setup Dev Environment
 
-Before we get started we need to setup our development environment. 
-Let's clone this git repo to our local machine and then create a branch for
-our work.
+Most of the Tutorial steps require you to run shell commands in a shell session.
+This tutorial assumes you're using a Mac. So first, start a shell session 
+by opening up the Terminal program that comes with MacOS. 
+
+Next, let's clone this git repo to our local machine and then 
+create a branch for our work.
 
 ```shell
 # Create a local copy of the code base
-git clone git@github.com:znatty22/d3b-ingest-packages.git
-cd d3b-ingest-packages
+$ git clone git@github.com:znatty22/d3b-ingest-packages.git
+$ cd d3b-ingest-packages
 
 # Create local branch for development
-git checkout -b my-branch
+$ git checkout -b my-branch
 ```
 
 Next, create a Python virtual environment. [Virtual environments](https://realpython.com/python-virtual-environments-a-primer/#why-do-you-need-virtual-environments)
@@ -110,10 +119,11 @@ for each project.
 
 ```shell
 # Create the virtual env
-virtualenv venv
+$ virtualenv venv
 
-# Activate the virtual env
-source venv/bin/activate
+# After we create, we must activate the virtual env
+# so Python knows to use the packages in our virtual env called "venv"
+$ source venv/bin/activate
 ```
 
 Now you should have a folder called `venv` which is where we will install 
@@ -121,27 +131,25 @@ our Python packages. So last, install the dependencies for this project by
 running the following:
 
 ```shell
-pip install -r requirements.txt
+$ pip install -r requirements.txt
 ```
 
-## Development
+## Develop
 
-In this section, we're going to:
-- Make a small change to an existing ingest package
-- Commit the change to our local branch
-- Push our changes to Github so that our local development branch is synced with Github
+In this section, we're going to make a small change to an existing ingest package
+that is in the repo for demonstration and tutorial purposes.
 
 ### Make a Change
-Just for the sake of demonstration we will add a new extracted column to one 
-of our extract configs in the `SD_W00FW00F/ingest_package` ingest package: 
+Let's add a new extracted column to one of our extract configs in the
+`SD_W00FW00F/ingest_package` ingest package: 
 
-Open up the extract config:
+Open up the extract config in your favorite code editor:
 ```
 d3b-ingest-packages/packages/SD_W00FW00F/ingest_package/extract_configs/clinical.py
 ```
 
 Add a new column by adding the following extract operation to the end of the 
-operations list: 
+`operations` list: 
 
 ```python
 constant_map(
@@ -150,14 +158,80 @@ constant_map(
 )
 ```
 
-**NOTE:** In a typical development workflow, after you make changes locally, you will want 
-to test them locally by running your ingest package in dry run or test mode. 
-This local development and test process is covered thoroughly in the [ingest library tutorial](https://kids-first.github.io/kf-lib-data-ingest/quickstart.html#test)
-so we won't go over that here. 
+## Test 
 
-### Commit Code 
-Make sure to save your work and then do the following to commit your change to 
-your local git branch. 
+We will briefly touch on ingest package testing here, but know that the local
+development and test process is covered more thoroughly in the
+[ingest library tutorial](https://kids-first.github.io/kf-lib-data-ingest/quickstart.html#test).
+
+### Dry Run Ingest 
+
+In a typical development workflow, after you make changes locally, you will want 
+to test them locally by running your ingest package in dry run or test mode. 
+
+```shell
+$ kidsfirst test d3b-ingest-packages/packages/SD_W00FW00F/ingest_package
+```
+
+Dry run mode will run all 3 stages of the ingest pipeline: extract, transform, 
+load - except when it runs the load stage, instead of actually loading the 
+transformed data into a target service, it just prints the payloads that it 
+would send. This is why its called dry-run mode. 
+
+Dry run ingest is meant to be a quick sanity check to make sure your code 
+didn't break anything in the extract/transform stages of the pipeline. 
+In the next section, you will learn how to run the full ingest for a more thorough test.
+
+### Run Full Ingest 
+
+Often, you will also want to run the full ingest on your local machine and ensure 
+that the data looks good in the service you ingested into. In this tutorial, 
+we will use the Kids First Dataservice as our example.
+
+#### Setup Local Kids First Data Service
+To enable this, first you will need to run Data Service on your machine via
+a [Docker-Compose](https://docs.docker.com/compose/) service stack. The 
+docker-compose stack is defined in the `docker-compose.yml` file at the top 
+level of this repo.
+
+Be sure to run the command below in a different shell session than the one
+you're currently in so you can view the live logs. In MacOS Terminal, you 
+should be able to open a new tab to do this.
+
+```shell
+# Bring up the services in the docker-compose stack
+$ docker-compose up
+
+# For later - bring down the services in the docker-compose stack
+$ docker-compose down
+```
+You should begin seeing the application logs from the services in 
+your docker-compose stack as it sets up.
+
+![Docker Compose Logs](docs/img/docker-compose-logs.png)
+
+Setup takes less than 30 seconds, so soon after you bring up the service, 
+you should be able to go to `http://localhost:5000` in your browser 
+and see the API docs for Data Service.
+
+![Data Service Docs](docs/img/dataservice-api-docs.png)
+
+Now you're ready to run your full ingest into Data Service:
+
+```shell
+$ kidsfirst ingest d3b-ingest-packages/packages/SD_W00FW00F/ingest_package
+```
+
+After your ingest completes, you should be able to visit the Data Service 
+endpoints and view the data that was ingested. Again, more details on the
+local development and test process can be found in the Kids First Ingest 
+Library tutorial so we will stop here.
+
+## Commit Code
+
+Now that we've done some local testing, we're ready to commit the changes we've
+made to our local branch. Make sure to save your work and then do the
+following to commit your change:
 
 ```shell
 # Stage the files you want to commit
@@ -170,28 +244,9 @@ git commit -m ":sparkles: Extract a study description column in clinical ext con
 to learn about D3b commit message standards.
 
 
-### **❗️ Important:** update run.yaml
-
-Our next step is to push the changes we've committed on our local branch, to 
-Github so that the remote repository on Github is synced to our local repository.
-
-However, before we do this, we need to do something to tell 
-Github to run its workflow for our ingest package and not any of the others 
-in this repo. To do this, we must update the `run.yaml` file with the path to 
-our ingest package: 
-
-```
-# In run.yaml, set value of package to your ingest package path
-package: SD_W00FW00F/ingest_package
-```  
-If there is already a path listed there, you can delete it or comment it out. 
-Note that the path listed in `run.yaml` is relative to the packages directory which is 
-`d3b-ingest-packages/packages`.
-
 ### Push to Github
-Now we're ready to push our local changes to Github. If this is the first time
-you are pushing your branch (it should be if you are going through Quick Start
-for the first time) to Github you will need to do the following:
+Next, push your local changes to Github so that your local repo is synced with
+Github's remote repo:
 
 ```shell
 git push -u origin my-branch
@@ -202,24 +257,60 @@ Now that the branch with our changes is on Github, we need to open a Pull
 Request so that we can begin to review both the ingest code and the data that it
 produces. 
 
-When you open a Pull Request, this triggers Github to start the workflow described 
-in the Welcome section.
+![Pull Request](docs/img/pull-request.png)
 
-You should be able to 
+## Kick-Off Github Workflow
+
+In this step we will do something to tell Github to run its workflow 
+for our ingest package and not another package in this repo. 
+
+To do this, we must update the `run.yaml` file with the path to our ingest package.
+This path should be relative to the packages directory which is 
+`d3b-ingest-packages/packages`.
+
+```
+# In run.yaml, change the value of package to your ingest package path
+
+package: SD_W00FW00F/ingest_package
+```  
+
+```shell
+# Commit and push the change to Github 
+git add run.yaml
+git commit -m ":wrench: Update run.yaml to trigger github workflow"
+git push
+```  
+
+**Note** that we will only need to do this one time. Github will always run 
+its workflow for the ingest package listed in the `run.yaml` file.
 
 ## Understand the Github Workflow 
-- Open a PR
-- View Github Actions log
-- View PR label
-- View validation report
-- Query data 
+Now every time you push changes to an existing Pull Request in this repo,
+Github will run the following workflow:
 
-# 👩🏻‍🎓 Tutorial 
+- 🏭 **Ingest** - Run your ingest package in test/dry run mode as a sanity check to ensure
+ things are working properly
+- 📊 **Validation** - Publish the validation report that the ingest library produces to a public website 
+specifically created for your PR
+- 🗃️ **Database Load** - Load the data that was output from ingest into a database specifically created 
+for your PR
+- 🔎 **Ingest Portal** - Deploy an ingest data portal specifically for your PR. 
+Load the data that was output from ingest into the database portal database.
+You and other stakeholders may then log in to view, query, and explore the ingested data. 
+As the PR owner, you will be the administrator of this portal and can invite
+others to view and query the data as well
+
+It is important to note that each PR has its own set of resources (database, 
+ingest portal, etc), so that different development efforts are isolated and 
+do not affect others.
+
+You can see exactly what is happening in the Github workflow by viewing the 
+workflow status in the Actions tab:
 
 
-# 👩‍💻 ⚡️ Advanced 
 
-- How to run docker-compose to setup and run the full ingest pipeline locally
+## View Results 
+
 
 # Resources
 
