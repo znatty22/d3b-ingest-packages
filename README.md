@@ -71,20 +71,153 @@ and [Git Flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitfl
 - Understand how to use [Pull Requests](https://www.atlassian.com/git/tutorials/making-a-pull-request) 
 on Github for code review and request to merge changes 
 
+**⚠️  Note** *The pre-requisites are NOT necessary to complete the quick start 
+or tutorial. However, if you are going to continue ingest development they
+will become ncessary.*
+
 
 # 👩‍💻 Quick Start 
 The quick start does not require knowledge of any pre-requisites as it gives 
-step by step instructions to the reader. It is intended to give a developer
-a quick glance at the end-to-end data development workflow.
+step by step instructions to the reader. It is intended to give a developer a
+quick glance at the end-to-end data development workflow. 
 
-TODO
+**⚠️  Note** *The quick start also skips some of the steps (e.g. local development, and 
+testing) and explanation that the Tutorial covers thoroughly.*
+
+Here is what you will do:
+
+1. Setup our local development environment
+2. Make a small change to an existing example ingest package
+3. Commit our code to a local development branch 
+4. Push our local code to Github and create a Pull Request (PR)
+5. View the ingested data and validation report
+
+## Setup Development Environment
+
+```shell
+# Create a local copy of the code base
+$ git clone git@github.com:znatty22/d3b-ingest-packages.git
+$ cd d3b-ingest-packages
+
+# Create local branch for development
+$ git checkout -b my-branch
+
+# Create a Python virtual environment (sandbox)
+$ virtualenv venv
+
+# Activate the venv
+$ source venv/bin/activate
+
+# Install necessary Python packages
+$ pip install -r requirements.txt
+```
+
+## Development 
+
+Let's add a new extracted column to one of our extract configs in the
+`SD_W00FW00F/ingest_package` ingest package: 
+
+Open up the extract config in your favorite code editor:
+```
+d3b-ingest-packages/packages/SD_W00FW00F/ingest_package/extract_configs/clinical.py
+```
+
+Add a new column by adding the following extract operation to the end of the 
+`operations` list: 
+
+```python
+constant_map(
+    out_col="study_description",
+    m="the study of canines"
+)
+```
+## Commit and Push Code
+
+At this point, you would normally test your change by running the ingest on 
+your local machine, but we have skipped this step for brevity. The Tutorial 
+covers this in detail. 
+
+Make sure to save your work and then do the following to commit your change:
+
+```shell
+# Stage the files you want to commit
+git add d3b-ingest-packages/packages/SD_W00FW00F/ingest_package/extract_configs/clinical.py
+
+# Commit the change and write a useful commit message
+git commit -m ":sparkles: Extract a study description column in clinical ext config"
+
+# Push changes to Github
+git push -u origin my-branch
+```
+
+## Prepare to Kick-Off Github Workflow
+
+In this step you will do something to tell Github to run its workflow 
+for our ingest package and not another package in this repo. 
+
+To do this, you must update the `run.yaml` file with the path to our ingest package.
+This path should be relative to the packages directory which is 
+`d3b-ingest-packages/packages`.
+
+```
+# In run.yaml, change the value of package to your ingest package path
+
+package: SD_W00FW00F/ingest_package
+```  
+
+```shell
+# Commit and push the change to Github 
+$ git add run.yaml
+$ git commit -m ":wrench: Update run.yaml to trigger github workflow"
+$ git push
+```
+
+**⚠️  Note** *You will only need to do this one time. Github will always run 
+its workflow for the ingest package listed in the `run.yaml` file.*
+
+## Open Pull Request (PR)
+Now that the branch with our changes is on Github, you will need to open a Pull 
+Request so that you can begin to review both the ingest code and the data that it
+produces. 
+
+![Pull Request](docs/img/pull-request.png)
+
+Github will start its workflow for the first time once you open the PR. After 
+that, it will re-run its workflow each time you push code to your PR.
+
+## View Results 
+
+You will be able to monitor the progress of the workflow and any logs each 
+job in the workflow prints out by visiting the `Actions` tab on your PR. 
+
+Once certain steps in the workflow complete, you'll see the two comments
+appear on your PR.
+
+### Validation Report
+
+The first is a summary of your ingest, containing counts of various entities 
+and a link to a website that contains the validation report that the ingest 
+library output created. 
+
+![Validation Report](docs/img/pr-comment-validation.png)
+
+### Ingest Data Portal
+The second PR comment contains a link to the ingest data portal. The data 
+portal uses the BI/data exploration application called [Metabase](https://www.metabase.com/). 
+
+You will be able to login to the portal as an admin. Your username will be listed 
+in the PR comment and you will need to ask the repo admin for your password.
+
+![Data Portal](docs/img/pr-comment-portal.png)
+
 
 # 👩🏻‍🎓 Tutorial 
 
 The tutorial is a more detailed version of the quick start by stepping through 
 the typical development workflow for an ingest developer. 
 
-Here is what we will do:
+
+Here is what you will do:
 
 1. Setup our local development environment
 2. Make a small change to an existing example ingest package
@@ -121,12 +254,12 @@ for each project.
 # Create the virtual env
 $ virtualenv venv
 
-# After we create, we must activate the virtual env
+# After you create, you must activate the virtual env
 # so Python knows to use the packages in our virtual env called "venv"
 $ source venv/bin/activate
 ```
 
-Now you should have a folder called `venv` which is where we will install 
+Now you should have a folder called `venv` which is where you will install 
 our Python packages. So last, install the dependencies for this project by 
 running the following:
 
@@ -136,7 +269,7 @@ $ pip install -r requirements.txt
 
 ## Develop
 
-In this section, we're going to make a small change to an existing ingest package
+In this section, you're going to make a small change to an existing ingest package
 that is in the repo for demonstration and tutorial purposes.
 
 ### Make a Change
@@ -186,7 +319,7 @@ In the next section, you will learn how to run the full ingest for a more thorou
 
 Often, you will also want to run the full ingest on your local machine and ensure 
 that the data looks good in the service you ingested into. In this tutorial, 
-we will use the Kids First Dataservice as our example.
+you will use the Kids First Dataservice as our example.
 
 #### Setup Local Kids First Data Service
 To enable this, first you will need to run Data Service on your machine via
@@ -229,7 +362,7 @@ Library tutorial so we will stop here.
 
 ## Commit Code
 
-Now that we've done some local testing, we're ready to commit the changes we've
+Now that you've done some local testing, you're ready to commit the changes you've
 made to our local branch. Make sure to save your work and then do the
 following to commit your change:
 
@@ -240,8 +373,8 @@ git add d3b-ingest-packages/packages/SD_W00FW00F/ingest_package/extract_configs/
 # Commit the change and write a useful commit message
 git commit -m ":sparkles: Extract a study description column in clinical ext config"
 ```
-**NOTE:** Please make sure to read the developer handbook [TODO]
-to learn about D3b commit message standards.
+**⚠️  Note** *Please make sure to read the developer handbook [TODO]
+to learn about D3b commit message standards.*
 
 
 ### Push to Github
@@ -252,19 +385,12 @@ Github's remote repo:
 git push -u origin my-branch
 ```
 
-## Open a Pull Request
-Now that the branch with our changes is on Github, we need to open a Pull 
-Request so that we can begin to review both the ingest code and the data that it
-produces. 
+## Prepare to Kick-Off Github Workflow
 
-![Pull Request](docs/img/pull-request.png)
-
-## Kick-Off Github Workflow
-
-In this step we will do something to tell Github to run its workflow 
+In this step you will do something to tell Github to run its workflow 
 for our ingest package and not another package in this repo. 
 
-To do this, we must update the `run.yaml` file with the path to our ingest package.
+To do this, you must update the `run.yaml` file with the path to our ingest package.
 This path should be relative to the packages directory which is 
 `d3b-ingest-packages/packages`.
 
@@ -276,13 +402,20 @@ package: SD_W00FW00F/ingest_package
 
 ```shell
 # Commit and push the change to Github 
-git add run.yaml
-git commit -m ":wrench: Update run.yaml to trigger github workflow"
-git push
+$ git add run.yaml
+$ git commit -m ":wrench: Update run.yaml to trigger github workflow"
+$ git push
 ```  
 
-**Note** that we will only need to do this one time. Github will always run 
-its workflow for the ingest package listed in the `run.yaml` file.
+**⚠️  Note** *You will only need to do this one time. Github will always run 
+its workflow for the ingest package listed in the `run.yaml` file.*
+
+## Open a Pull Request
+Now that the branch with our changes is on Github, you need to open a Pull 
+Request so that you can begin to review both the ingest code and the data that it
+produces. 
+
+![Pull Request](docs/img/pull-request.png)
 
 ## Understand the Github Workflow 
 Now every time you push changes to an existing Pull Request in this repo,
@@ -307,13 +440,61 @@ do not affect others.
 You can see exactly what is happening in the Github workflow by viewing the 
 workflow status in the Actions tab:
 
+![Github Workflow](docs/img/github-workflow.png)
 
+You should also be able to click on any of the jobs in the workflow to see 
+detailed logs.
 
 ## View Results 
 
+You will know when certain steps of the workflow have completed, when you see 
+the following comments added to your PR by Github: 
 
-# Resources
+### Validation Report
+The first is a summary of your ingest, containing counts of various entities 
+and a link to a website that contains the validation report that the ingest 
+library output created. 
 
-- Development Handbook
+![Validation Report](docs/img/pr-comment-validation.png)
+
+The validation report shows you the results of standard data checks
+that were run on the data output from the extract and transform stage of 
+the ingest pipeline. These checks can help you quickly determine a number of 
+issues: 
+
+- **Correctness**: e.g. values for Specimen.analyte are set to `Blood` rather than `DNA`
+- **Consistency**: e.g. some participants use the value `F` to denote 
+the gender of the participant is female, while others use the value `Female` 
+- **Relational Integrity**: e.g. 1 specimen is linked to more than 1 
+person 
+
+
+### Ingest Data Portal
+The second PR comment contains a link to the ingest data portal. The data 
+portal uses the BI/data exploration application called [Metabase](https://www.metabase.com/). 
+
+You will be able to login to the portal as an admin. Your username will be listed 
+in the PR comment and you will need to ask the repo admin for your password.
+
+![Data Portal](docs/img/pr-comment-portal.png)
+
+The portal has a number of different benefits:
+
+- **Centralized Data**: anyone who is reviewing your code is 
+able to see both your code and the data it produces
+- **Debug Issues**: if you find issues in the validation report, now you can dig
+deeper and query your data with **SQL**. Those queries can also be saved.
+- **Collaboration**: as an admin of the portal, you can **invite others to view your
+data, and the queries/dashboards you created
+
+As mentioned before, Github deploys an isolated set of resources 
+(e.g. portal, validation site ) for each PR, so your data is completely 
+separate from another PR's data. This means you don't have to be worried about
+altering or messing with anyone else's work.
+
+
+# Resources (Todo)
+
+- D3b Developer Handbook
 - Kids First Help Center
 
